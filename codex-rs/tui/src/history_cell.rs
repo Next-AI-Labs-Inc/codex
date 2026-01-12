@@ -47,6 +47,7 @@ use codex_protocol::openai_models::ReasoningEffort as ReasoningEffortConfig;
 use codex_protocol::plan_tool::PlanItemArg;
 use codex_protocol::plan_tool::StepStatus;
 use codex_protocol::plan_tool::UpdatePlanArgs;
+use codex_protocol::user_input::TextElement;
 use image::DynamicImage;
 use image::ImageReader;
 use mcp_types::EmbeddedResourceResource;
@@ -54,6 +55,7 @@ use mcp_types::Resource;
 use mcp_types::ResourceLink;
 use mcp_types::ResourceTemplate;
 use ratatui::prelude::*;
+use ratatui::style::Color;
 use ratatui::style::Modifier;
 use ratatui::style::Style;
 use ratatui::style::Styled;
@@ -158,6 +160,7 @@ impl dyn HistoryCell {
 #[derive(Debug)]
 pub(crate) struct UserHistoryCell {
     pub message: String,
+    pub text_elements: Vec<TextElement>,
 }
 
 impl HistoryCell for UserHistoryCell {
@@ -171,13 +174,61 @@ impl HistoryCell for UserHistoryCell {
             .max(1);
 
         let style = user_message_style();
+        let element_style = style.fg(Color::Cyan);
 
-        let wrapped = word_wrap_lines(
-            self.message.lines().map(|l| Line::from(l).style(style)),
-            // Wrap algorithm matches textarea.rs.
-            RtOptions::new(usize::from(wrap_width))
-                .wrap_algorithm(textwrap::WrapAlgorithm::FirstFit),
-        );
+        let wrapped = if self.text_elements.is_empty() {
+            word_wrap_lines(
+                self.message.lines().map(|l| Line::from(l).style(style)),
+                // Wrap algorithm matches textarea.rs.
+                RtOptions::new(usize::from(wrap_width))
+                    .wrap_algorithm(textwrap::WrapAlgorithm::FirstFit),
+            )
+        } else {
+            let mut elements = self.text_elements.clone();
+            elements.sort_by_key(|e| e.byte_range.start);
+            let mut offset = 0usize;
+            let mut raw_lines: Vec<Line<'static>> = Vec::new();
+            for line_text in self.message.lines() {
+                let line_start = offset;
+                let line_end = line_start + line_text.len();
+                let mut spans: Vec<Span<'static>> = Vec::new();
+                // Track how much of the line we've emitted to interleave plain and styled spans.
+                let mut cursor = line_start;
+                for elem in &elements {
+                    let start = elem.byte_range.start.max(line_start);
+                    let end = elem.byte_range.end.min(line_end);
+                    if start >= end {
+                        continue;
+                    }
+                    if cursor < start {
+                        spans.push(Span::from(
+                            line_text[(cursor - line_start)..(start - line_start)].to_string(),
+                        ));
+                    }
+                    spans.push(Span::styled(
+                        line_text[(start - line_start)..(end - line_start)].to_string(),
+                        element_style,
+                    ));
+                    cursor = end;
+                }
+                if cursor < line_end {
+                    spans.push(Span::from(line_text[(cursor - line_start)..].to_string()));
+                }
+                let line = if spans.is_empty() {
+                    Line::from(line_text).style(style)
+                } else {
+                    Line::from(spans).style(style)
+                };
+                raw_lines.push(line);
+                // TextArea normalizes newlines to '\n', so advancing by 1 is correct.
+                offset = line_end + 1;
+            }
+            word_wrap_lines(
+                raw_lines,
+                RtOptions::new(usize::from(wrap_width))
+                    .wrap_algorithm(textwrap::WrapAlgorithm::FirstFit),
+            )
+        };
 
         lines.push(Line::from("").style(style));
         lines.extend(prefix_lines(wrapped, "› ".bold().dim(), "  ".into()));
@@ -886,8 +937,11 @@ pub(crate) fn new_session_info(
     SessionInfoCell(CompositeHistoryCell { parts })
 }
 
-pub(crate) fn new_user_prompt(message: String) -> UserHistoryCell {
-    UserHistoryCell { message }
+pub(crate) fn new_user_prompt(message: String, text_elements: Vec<TextElement>) -> UserHistoryCell {
+    UserHistoryCell {
+        message,
+        text_elements,
+    }
 }
 
 #[derive(Debug)]
@@ -2581,6 +2635,7 @@ mod tests {
         let msg = "one two three four five six seven";
         let cell = UserHistoryCell {
             message: msg.to_string(),
+            text_elements: Vec::new(),
         };
 
         // Small width to force wrapping more clearly. Effective wrap width is width-2 due to the ▌ prefix and trailing space.

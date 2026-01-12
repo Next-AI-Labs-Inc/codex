@@ -78,6 +78,8 @@ impl From<EnvironmentContext> for ResponseItem {
             role: "user".to_string(),
             content: vec![ContentItem::InputText {
                 text: ec.serialize_to_xml(),
+                // Environment context is synthesized; no UI element ranges to preserve.
+                text_elements: Vec::new(),
             }],
         }
     }

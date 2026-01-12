@@ -301,8 +301,14 @@ impl BottomPane {
     }
 
     /// Replace the composer text with `text`.
-    pub(crate) fn set_composer_text(&mut self, text: String) {
-        self.composer.set_text_content(text);
+    pub(crate) fn set_composer_text(
+        &mut self,
+        text: String,
+        text_elements: Vec<TextElement>,
+        local_image_paths: Vec<PathBuf>,
+    ) {
+        self.composer
+            .set_text_content(text, text_elements, local_image_paths);
         self.request_redraw();
     }
 

@@ -126,7 +126,8 @@ impl App {
         self.chat_widget.submit_op(Op::ThreadRollback { num_turns });
         self.trim_transcript_for_backtrack(selection.nth_user_message);
         if !selection.prefill.is_empty() {
-            self.chat_widget.set_composer_text(selection.prefill);
+            self.chat_widget
+                .set_composer_text(selection.prefill, Vec::new(), Vec::new());
         }
     }
 

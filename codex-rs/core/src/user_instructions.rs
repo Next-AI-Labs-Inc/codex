@@ -17,7 +17,7 @@ pub(crate) struct UserInstructions {
 
 impl UserInstructions {
     pub fn is_user_instructions(message: &[ContentItem]) -> bool {
-        if let [ContentItem::InputText { text }] = message {
+        if let [ContentItem::InputText { text, .. }] = message {
             text.starts_with(USER_INSTRUCTIONS_PREFIX)
                 || text.starts_with(USER_INSTRUCTIONS_OPEN_TAG_LEGACY)
         } else {
@@ -37,6 +37,8 @@ impl From<UserInstructions> for ResponseItem {
                     directory = ui.directory,
                     contents = ui.text
                 ),
+                // Instructions are synthesized from disk; no UI element ranges to preserve.
+                text_elements: Vec::new(),
             }],
         }
     }
@@ -52,7 +54,7 @@ pub(crate) struct SkillInstructions {
 
 impl SkillInstructions {
     pub fn is_skill_instructions(message: &[ContentItem]) -> bool {
-        if let [ContentItem::InputText { text }] = message {
+        if let [ContentItem::InputText { text, .. }] = message {
             text.starts_with(SKILL_INSTRUCTIONS_PREFIX)
         } else {
             false
@@ -75,6 +77,33 @@ impl From<SkillInstructions> for ResponseItem {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename = "developer_instructions", rename_all = "snake_case")]
+pub(crate) struct DeveloperInstructions {
+    text: String,
+}
+
+impl DeveloperInstructions {
+    pub fn new<T: Into<String>>(text: T) -> Self {
+        Self { text: text.into() }
+    }
+
+    pub fn into_text(self) -> String {
+        self.text
+    }
+}
+
+impl From<DeveloperInstructions> for ResponseItem {
+    fn from(di: DeveloperInstructions) -> Self {
+        ResponseItem::Message {
+            id: None,
+            role: "developer".to_string(),
+            content: vec![ContentItem::InputText {
+                text: di.into_text(),
+            }],
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -94,7 +123,7 @@ mod tests {
 
         assert_eq!(role, "user");
 
-        let [ContentItem::InputText { text }] = content.as_slice() else {
+        let [ContentItem::InputText { text, .. }] = content.as_slice() else {
             panic!("expected one InputText content item");
         };
 
@@ -138,7 +167,7 @@ mod tests {
 
         assert_eq!(role, "user");
 
-        let [ContentItem::InputText { text }] = content.as_slice() else {
+        let [ContentItem::InputText { text, .. }] = content.as_slice() else {
             panic!("expected one InputText content item");
         };
 

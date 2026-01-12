@@ -61,6 +61,8 @@ pub fn user_shell_command_record_item(
         role: "user".to_string(),
         content: vec![ContentItem::InputText {
             text: format_user_shell_command_record(command, exec_output, turn_context),
+            // Shell command records are synthesized; no UI element ranges to preserve.
+            text_elements: Vec::new(),
         }],
     }
 }
@@ -95,7 +97,7 @@ mod tests {
         let ResponseItem::Message { content, .. } = item else {
             panic!("expected message");
         };
-        let [ContentItem::InputText { text }] = content.as_slice() else {
+        let [ContentItem::InputText { text, .. }] = content.as_slice() else {
             panic!("expected input text");
         };
         assert_eq!(

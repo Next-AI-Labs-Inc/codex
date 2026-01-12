@@ -204,15 +204,20 @@ mod tests {
             id: None,
             role: "user".to_string(),
             content: vec![
-                ContentItem::InputText { text: label },
+                ContentItem::InputText {
+                    text: label,
+                    text_elements: Vec::new(),
+                },
                 ContentItem::InputImage {
                     image_url: image_url.clone(),
                 },
                 ContentItem::InputText {
                     text: "</image>".to_string(),
+                    text_elements: Vec::new(),
                 },
                 ContentItem::InputText {
                     text: user_text.clone(),
+                    text_elements: Vec::new(),
                 },
             ],
         };
@@ -244,15 +249,20 @@ mod tests {
             id: None,
             role: "user".to_string(),
             content: vec![
-                ContentItem::InputText { text: label },
+                ContentItem::InputText {
+                    text: label,
+                    text_elements: Vec::new(),
+                },
                 ContentItem::InputImage {
                     image_url: image_url.clone(),
                 },
                 ContentItem::InputText {
                     text: codex_protocol::models::image_close_tag_text(),
+                    text_elements: Vec::new(),
                 },
                 ContentItem::InputText {
                     text: user_text.clone(),
+                    text_elements: Vec::new(),
                 },
             ],
         };
@@ -282,6 +292,7 @@ mod tests {
                 role: "user".to_string(),
                 content: vec![ContentItem::InputText {
                     text: "<user_instructions>test_text</user_instructions>".to_string(),
+                    text_elements: Vec::new(),
                 }],
             },
             ResponseItem::Message {
@@ -289,6 +300,7 @@ mod tests {
                 role: "user".to_string(),
                 content: vec![ContentItem::InputText {
                     text: "<environment_context>test_text</environment_context>".to_string(),
+                    text_elements: Vec::new(),
                 }],
             },
             ResponseItem::Message {
@@ -296,6 +308,7 @@ mod tests {
                 role: "user".to_string(),
                 content: vec![ContentItem::InputText {
                     text: "# AGENTS.md instructions for test_directory\n\n<INSTRUCTIONS>\ntest_text\n</INSTRUCTIONS>".to_string(),
+                    text_elements: Vec::new(),
                 }],
             },
             ResponseItem::Message {
@@ -304,6 +317,7 @@ mod tests {
                 content: vec![ContentItem::InputText {
                     text: "<skill>\n<name>demo</name>\n<path>skills/demo/SKILL.md</path>\nbody\n</skill>"
                         .to_string(),
+                    text_elements: Vec::new(),
                 }],
             },
             ResponseItem::Message {
@@ -311,6 +325,7 @@ mod tests {
                 role: "user".to_string(),
                 content: vec![ContentItem::InputText {
                     text: "<user_shell_command>echo 42</user_shell_command>".to_string(),
+                    text_elements: Vec::new(),
                 }],
             },
         ];

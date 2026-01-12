@@ -220,7 +220,11 @@ pub(crate) async fn exit_review_mode(
             &[ResponseItem::Message {
                 id: Some(REVIEW_USER_MESSAGE_ID.to_string()),
                 role: "user".to_string(),
-                content: vec![ContentItem::InputText { text: user_message }],
+                content: vec![ContentItem::InputText {
+                    text: user_message,
+                    // Review exit messages are synthesized; no UI element ranges to preserve.
+                    text_elements: Vec::new(),
+                }],
             }],
         )
         .await;

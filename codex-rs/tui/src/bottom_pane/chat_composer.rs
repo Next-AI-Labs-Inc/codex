@@ -108,6 +108,8 @@ use codex_common::fuzzy_match::fuzzy_match;
 use codex_protocol::custom_prompts::CustomPrompt;
 use codex_protocol::custom_prompts::PROMPTS_CMD_PREFIX;
 use codex_protocol::models::local_image_label_text;
+use codex_protocol::user_input::ByteRange;
+use codex_protocol::user_input::TextElement;
 
 use crate::app_event::AppEvent;
 use crate::app_event_sender::AppEventSender;
@@ -140,8 +142,10 @@ const LARGE_PASTE_CHAR_THRESHOLD: usize = 1000;
 /// Result returned when the user interacts with the text area.
 #[derive(Debug, PartialEq)]
 pub enum InputResult {
-    Submitted(String),
-    Queued(String),
+    Submitted {
+        text: String,
+        text_elements: Vec<TextElement>,
+    },
     Command(SlashCommand),
     CommandWithArgs(SlashCommand, String),
     None,
@@ -323,7 +327,7 @@ impl ChatComposer {
         let Some(text) = self.history.on_entry_response(log_id, offset, entry) else {
             return false;
         };
-        self.set_text_content(text);
+        self.set_text_content(text, Vec::new(), Vec::new());
         true
     }
 
@@ -500,12 +504,31 @@ impl ChatComposer {
     }
 
     /// Replace the entire composer content with `text` and reset cursor.
-    pub(crate) fn set_text_content(&mut self, text: String) {
+    pub(crate) fn set_text_content(
+        &mut self,
+        text: String,
+        text_elements: Vec<TextElement>,
+        local_image_paths: Vec<PathBuf>,
+    ) {
         // Clear any existing content, placeholders, and attachments first.
         self.textarea.set_text("");
         self.pending_pastes.clear();
         self.attached_images.clear();
-        self.textarea.set_text(&text);
+
+        let image_placeholders: HashSet<String> = text_elements
+            .iter()
+            .filter_map(|elem| elem.placeholder.clone())
+            .collect();
+        self.textarea.set_text_with_elements(&text, &text_elements);
+
+        for (idx, path) in local_image_paths.into_iter().enumerate() {
+            let placeholder = local_image_label_text(idx + 1);
+            if image_placeholders.contains(&placeholder) {
+                self.attached_images
+                    .push(AttachedImage { placeholder, path });
+            }
+        }
+
         self.textarea.set_cursor(0);
         self.sync_popups();
     }
@@ -515,7 +538,7 @@ impl ChatComposer {
             return None;
         }
         let previous = self.current_text();
-        self.set_text_content(String::new());
+        self.set_text_content(String::new(), Vec::new(), Vec::new());
         self.history.reset_navigation();
         self.history.record_local_submission(&previous);
         Some(previous)
@@ -773,7 +796,14 @@ impl ChatComposer {
                         expand_if_numeric_with_positional_args(prompt, first_line)
                 {
                     self.textarea.set_text("");
-                    return (InputResult::Submitted(expanded), true);
+                    return (
+                        InputResult::Submitted {
+                            text: expanded,
+                            // Expanded prompt is plain text; no UI element ranges to preserve.
+                            text_elements: Vec::new(),
+                        },
+                        true,
+                    );
                 }
 
                 if let Some(sel) = popup.selected_item() {
@@ -791,7 +821,14 @@ impl ChatComposer {
                                 ) {
                                     PromptSelectionAction::Submit { text } => {
                                         self.textarea.set_text("");
-                                        return (InputResult::Submitted(text), true);
+                                        return (
+                                            InputResult::Submitted {
+                                                text,
+                                                // Prompt submission has no UI element ranges.
+                                                text_elements: Vec::new(),
+                                            },
+                                            true,
+                                        );
                                     }
                                     PromptSelectionAction::Insert { text, cursor } => {
                                         let target = cursor.unwrap_or(text.len());
@@ -1096,6 +1133,42 @@ impl ChatComposer {
     fn is_image_path(path: &str) -> bool {
         let lower = path.to_ascii_lowercase();
         lower.ends_with(".png") || lower.ends_with(".jpg") || lower.ends_with(".jpeg")
+    }
+
+    fn trim_text_elements(
+        original: &str,
+        trimmed: &str,
+        elements: Vec<TextElement>,
+    ) -> Vec<TextElement> {
+        if trimmed.is_empty() || elements.is_empty() {
+            return Vec::new();
+        }
+        let trimmed_start = original.len().saturating_sub(original.trim_start().len());
+        let trimmed_end = trimmed_start.saturating_add(trimmed.len());
+
+        elements
+            .into_iter()
+            .filter_map(|elem| {
+                let start = elem.byte_range.start;
+                let end = elem.byte_range.end;
+                if end <= trimmed_start || start >= trimmed_end {
+                    return None;
+                }
+                let new_start = start.saturating_sub(trimmed_start);
+                let new_end = end.saturating_sub(trimmed_start).min(trimmed.len());
+                if new_start >= new_end {
+                    return None;
+                }
+                let placeholder = trimmed.get(new_start..new_end).map(str::to_string);
+                Some(TextElement {
+                    byte_range: ByteRange {
+                        start: new_start,
+                        end: new_end,
+                    },
+                    placeholder,
+                })
+            })
+            .collect()
     }
 
     fn skills_enabled(&self) -> bool {
@@ -1555,7 +1628,7 @@ impl ChatComposer {
                         _ => unreachable!(),
                     };
                     if let Some(text) = replace_text {
-                        self.set_text_content(text);
+                        self.set_text_content(text, Vec::new(), Vec::new());
                         return (InputResult::None, true);
                     }
                 }
@@ -1572,8 +1645,161 @@ impl ChatComposer {
                 modifiers: KeyModifiers::NONE,
                 ..
             } => {
-                let should_queue = !self.steer_enabled;
-                self.handle_submission(should_queue)
+                // If the first line is a bare built-in slash command (no args),
+                // dispatch it even when the slash popup isn't visible. This preserves
+                // the workflow: type a prefix ("/di"), press Tab to complete to
+                // "/diff ", then press Enter to run it. Tab moves the cursor beyond
+                // the '/name' token and our caret-based heuristic hides the popup,
+                // but Enter should still dispatch the command rather than submit
+                // literal text.
+                let first_line = self.textarea.text().lines().next().unwrap_or("");
+                if let Some((name, rest)) = parse_slash_name(first_line)
+                    && rest.is_empty()
+                    && let Some((_n, cmd)) = built_in_slash_commands()
+                        .into_iter()
+                        .filter(|(_, cmd)| {
+                            windows_degraded_sandbox_active()
+                                || *cmd != SlashCommand::ElevateSandbox
+                        })
+                        .find(|(n, _)| *n == name)
+                {
+                    self.textarea.set_text("");
+                    return (InputResult::Command(cmd), true);
+                }
+                // If we're in a paste-like burst capture, treat Enter as part of the burst
+                // and accumulate it rather than submitting or inserting immediately.
+                // Do not treat Enter as paste inside a slash-command context.
+                let in_slash_context = matches!(self.active_popup, ActivePopup::Command(_))
+                    || self
+                        .textarea
+                        .text()
+                        .lines()
+                        .next()
+                        .unwrap_or("")
+                        .starts_with('/');
+                if self.paste_burst.is_active() && !in_slash_context {
+                    let now = Instant::now();
+                    if self.paste_burst.append_newline_if_active(now) {
+                        return (InputResult::None, true);
+                    }
+                }
+                // If we have pending placeholder pastes, replace them in the textarea text
+                // and continue to the normal submission flow to handle slash commands.
+                if !self.pending_pastes.is_empty() {
+                    let mut text = self.textarea.text().to_string();
+                    for (placeholder, actual) in &self.pending_pastes {
+                        if text.contains(placeholder) {
+                            text = text.replace(placeholder, actual);
+                        }
+                    }
+                    self.textarea.set_text(&text);
+                    self.pending_pastes.clear();
+                }
+
+                // During a paste-like burst, treat Enter as a newline instead of submit.
+                let now = Instant::now();
+                if self
+                    .paste_burst
+                    .newline_should_insert_instead_of_submit(now)
+                    && !in_slash_context
+                {
+                    self.textarea.insert_str("\n");
+                    self.paste_burst.extend_window(now);
+                    return (InputResult::None, true);
+                }
+                let mut text = self.textarea.text().to_string();
+                let original_input = text.clone();
+                let mut text_elements = self.textarea.text_elements();
+                let input_starts_with_space = original_input.starts_with(' ');
+                self.textarea.set_text("");
+
+                // Replace all pending pastes in the text
+                for (placeholder, actual) in &self.pending_pastes {
+                    if text.contains(placeholder) {
+                        text = text.replace(placeholder, actual);
+                    }
+                }
+                self.pending_pastes.clear();
+
+                // If there is neither text nor attachments, suppress submission entirely.
+                let has_attachments = !self.attached_images.is_empty();
+                text = text.trim().to_string();
+                text_elements = Self::trim_text_elements(&original_input, &text, text_elements);
+                if let Some((name, _rest)) = parse_slash_name(&text) {
+                    let treat_as_plain_text = input_starts_with_space || name.contains('/');
+                    if !treat_as_plain_text {
+                        let is_builtin = built_in_slash_commands()
+                            .into_iter()
+                            .filter(|(_, cmd)| {
+                                windows_degraded_sandbox_active()
+                                    || *cmd != SlashCommand::ElevateSandbox
+                            })
+                            .any(|(command_name, _)| command_name == name);
+                        let prompt_prefix = format!("{PROMPTS_CMD_PREFIX}:");
+                        let is_known_prompt = name
+                            .strip_prefix(&prompt_prefix)
+                            .map(|prompt_name| {
+                                self.custom_prompts
+                                    .iter()
+                                    .any(|prompt| prompt.name == prompt_name)
+                            })
+                            .unwrap_or(false);
+                        if !is_builtin && !is_known_prompt {
+                            let message = format!(
+                                r#"Unrecognized command '/{name}'. Type "/" for a list of supported commands."#
+                            );
+                            self.app_event_tx.send(AppEvent::InsertHistoryCell(Box::new(
+                                history_cell::new_info_event(message, None),
+                            )));
+                            self.textarea.set_text(&original_input);
+                            self.textarea.set_cursor(original_input.len());
+                            return (InputResult::None, true);
+                        }
+                    }
+                }
+
+                if !input_starts_with_space
+                    && let Some((name, rest)) = parse_slash_name(&text)
+                    && !rest.is_empty()
+                    && !name.contains('/')
+                    && let Some((_n, cmd)) = built_in_slash_commands()
+                        .into_iter()
+                        .find(|(command_name, _)| *command_name == name)
+                    && cmd == SlashCommand::Review
+                {
+                    return (InputResult::CommandWithArgs(cmd, rest.to_string()), true);
+                }
+
+                let expanded_prompt = match expand_custom_prompt(&text, &self.custom_prompts) {
+                    Ok(expanded) => expanded,
+                    Err(err) => {
+                        self.app_event_tx.send(AppEvent::InsertHistoryCell(Box::new(
+                            history_cell::new_error_event(err.user_message()),
+                        )));
+                        self.textarea.set_text(&original_input);
+                        self.textarea.set_cursor(original_input.len());
+                        return (InputResult::None, true);
+                    }
+                };
+                if let Some(expanded) = expanded_prompt {
+                    text = expanded;
+                    // Expanded prompt (e.g. custom prompt) is plain text; no UI element ranges to preserve.
+                    text_elements = Vec::new();
+                }
+                if text.is_empty() && !has_attachments {
+                    return (InputResult::None, true);
+                }
+                if !text.is_empty() {
+                    self.history.record_local_submission(&text);
+                }
+                // Do not clear attached_images here; ChatWidget drains them via take_recent_submission_images().
+                (
+                    InputResult::Submitted {
+                        text,
+                        text_elements,
+                    },
+                    true,
+                )
             }
             input => self.handle_input_basic(input),
         }
@@ -2487,7 +2713,7 @@ mod tests {
         composer.set_steer_enabled(true);
         composer.set_steer_enabled(true);
 
-        composer.set_text_content("draft text".to_string());
+        composer.set_text_content("draft text".to_string(), Vec::new(), Vec::new());
         assert_eq!(composer.clear_for_ctrl_c(), Some("draft text".to_string()));
         assert!(composer.is_empty());
 
@@ -2794,7 +3020,7 @@ mod tests {
         let (result, _) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
         match result {
-            InputResult::Submitted(text) => assert_eq!(text, "1あ"),
+            InputResult::Submitted { text, .. } => assert_eq!(text, "1あ"),
             _ => panic!("expected Submitted"),
         }
     }
@@ -3116,7 +3342,7 @@ mod tests {
         let (result, _) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
         match result {
-            InputResult::Submitted(text) => assert_eq!(text, "hello"),
+            InputResult::Submitted { text, .. } => assert_eq!(text, "hello"),
             _ => panic!("expected Submitted"),
         }
     }
@@ -3182,7 +3408,7 @@ mod tests {
         let (result, _) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
         match result {
-            InputResult::Submitted(text) => assert_eq!(text, large),
+            InputResult::Submitted { text, .. } => assert_eq!(text, large),
             _ => panic!("expected Submitted"),
         }
         assert!(composer.pending_pastes.is_empty());
@@ -3455,7 +3681,7 @@ mod tests {
             InputResult::CommandWithArgs(_, _) => {
                 panic!("expected command dispatch without args for '/init'")
             }
-            InputResult::Submitted(text) => {
+            InputResult::Submitted { text, .. } => {
                 panic!("expected command dispatch, but composer submitted literal text: {text}")
             }
             InputResult::Queued(_) => {
@@ -3534,7 +3760,7 @@ mod tests {
             InputResult::CommandWithArgs(_, _) => {
                 panic!("expected command dispatch without args for '/diff'")
             }
-            InputResult::Submitted(text) => {
+            InputResult::Submitted { text, .. } => {
                 panic!("expected command dispatch after Tab completion, got literal submit: {text}")
             }
             InputResult::Queued(_) => {
@@ -3573,7 +3799,7 @@ mod tests {
             InputResult::CommandWithArgs(_, _) => {
                 panic!("expected command dispatch without args for '/mention'")
             }
-            InputResult::Submitted(text) => {
+            InputResult::Submitted { text, .. } => {
                 panic!("expected command dispatch, but composer submitted literal text: {text}")
             }
             InputResult::Queued(_) => {
@@ -3661,7 +3887,7 @@ mod tests {
         // Submit and verify final expansion
         let (result, _) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
-        if let InputResult::Submitted(text) = result {
+        if let InputResult::Submitted { text, .. } = result {
             assert_eq!(text, format!("{} and {}", test_cases[0].0, test_cases[2].0));
         } else {
             panic!("expected Submitted");
@@ -3891,7 +4117,21 @@ mod tests {
         let (result, _) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
         match result {
-            InputResult::Submitted(text) => assert_eq!(text, "[Image #1] hi"),
+            InputResult::Submitted {
+                text,
+                text_elements,
+            } => {
+                assert_eq!(text, "[Image #1] hi");
+                assert_eq!(text_elements.len(), 1);
+                assert_eq!(text_elements[0].placeholder.as_deref(), Some("[Image #1]"));
+                assert_eq!(
+                    text_elements[0].byte_range,
+                    ByteRange {
+                        start: 0,
+                        end: "[Image #1]".len()
+                    }
+                );
+            }
             _ => panic!("expected Submitted"),
         }
         let imgs = composer.take_recent_submission_images();
@@ -3915,7 +4155,21 @@ mod tests {
         let (result, _) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
         match result {
-            InputResult::Submitted(text) => assert_eq!(text, "[Image #1]"),
+            InputResult::Submitted {
+                text,
+                text_elements,
+            } => {
+                assert_eq!(text, "[Image #1]");
+                assert_eq!(text_elements.len(), 1);
+                assert_eq!(text_elements[0].placeholder.as_deref(), Some("[Image #1]"));
+                assert_eq!(
+                    text_elements[0].byte_range,
+                    ByteRange {
+                        start: 0,
+                        end: "[Image #1]".len()
+                    }
+                );
+            }
             _ => panic!("expected Submitted"),
         }
         let imgs = composer.take_recent_submission_images();
@@ -4167,7 +4421,10 @@ mod tests {
         let (result, _needs_redraw) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
-        assert_eq!(InputResult::Submitted(prompt_text.to_string()), result);
+        assert!(matches!(
+            result,
+            InputResult::Submitted { text, .. } if text == prompt_text.to_string()
+        ));
         assert!(composer.textarea.is_empty());
     }
 
@@ -4199,10 +4456,11 @@ mod tests {
         let (result, _needs_redraw) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
-        assert_eq!(
-            InputResult::Submitted("Review Alice changes on main".to_string()),
-            result
-        );
+        assert!(matches!(
+            result,
+            InputResult::Submitted { text, .. }
+                if text == "Review Alice changes on main".to_string()
+        ));
         assert!(composer.textarea.is_empty());
     }
 
@@ -4234,10 +4492,11 @@ mod tests {
         let (result, _needs_redraw) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
-        assert_eq!(
-            InputResult::Submitted("Pair Alice Smith with dev-main".to_string()),
-            result
-        );
+        assert!(matches!(
+            result,
+            InputResult::Submitted { text, .. }
+                if text == "Pair Alice Smith with dev-main".to_string()
+        ));
         assert!(composer.textarea.is_empty());
     }
 
@@ -4294,7 +4553,7 @@ mod tests {
 
         // Verify the custom prompt was expanded with the large content as positional arg
         match result {
-            InputResult::Submitted(text) => {
+            InputResult::Submitted { text, .. } => {
                 // The prompt should be expanded, with the large content replacing $1
                 assert_eq!(
                     text,
@@ -4332,7 +4591,7 @@ mod tests {
         let (result, _needs_redraw) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
-        if let InputResult::Submitted(text) = result {
+        if let InputResult::Submitted { text, .. } = result {
             assert_eq!(text, "/Users/example/project/src/main.rs");
         } else {
             panic!("expected Submitted");
@@ -4367,7 +4626,7 @@ mod tests {
         let (result, _needs_redraw) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
-        if let InputResult::Submitted(text) = result {
+        if let InputResult::Submitted { text, .. } = result {
             assert_eq!(text, "/this-looks-like-a-command");
         } else {
             panic!("expected Submitted");
@@ -4516,7 +4775,10 @@ mod tests {
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
         let expected = "Header: foo\nArgs: foo bar\nNinth: \n".to_string();
-        assert_eq!(InputResult::Submitted(expected), result);
+        assert!(matches!(
+            result,
+            InputResult::Submitted { text, .. } if text == expected
+        ));
     }
 
     #[test]
@@ -4547,7 +4809,10 @@ mod tests {
         let (result, _needs_redraw) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
-        assert_eq!(InputResult::Submitted("Echo: hi".to_string()), result);
+        assert!(matches!(
+            result,
+            InputResult::Submitted { text, .. } if text == "Echo: hi".to_string()
+        ));
         assert!(composer.textarea.is_empty());
     }
 
@@ -4619,10 +4884,11 @@ mod tests {
         let (result, _needs_redraw) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
-        assert_eq!(
-            InputResult::Submitted("Cost: $$ and first: x".to_string()),
-            result
-        );
+        assert!(matches!(
+            result,
+            InputResult::Submitted { text, .. }
+                if text == "Cost: $$ and first: x".to_string()
+        ));
     }
 
     #[test]
@@ -4659,7 +4925,10 @@ mod tests {
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
         let expected = "First: one two\nSecond: one two".to_string();
-        assert_eq!(InputResult::Submitted(expected), result);
+        assert!(matches!(
+            result,
+            InputResult::Submitted { text, .. } if text == expected
+        ));
     }
 
     /// Behavior: the first fast ASCII character is held briefly to avoid flicker; if no burst
@@ -4813,7 +5082,7 @@ mod tests {
         );
 
         // Simulate history-like content: "/ test"
-        composer.set_text_content("/ test".to_string());
+        composer.set_text_content("/ test".to_string(), Vec::new(), Vec::new());
 
         // After set_text_content -> sync_popups is called; popup should NOT be Command.
         assert!(
@@ -4843,21 +5112,21 @@ mod tests {
         );
 
         // Case 1: bare "/"
-        composer.set_text_content("/".to_string());
+        composer.set_text_content("/".to_string(), Vec::new(), Vec::new());
         assert!(
             matches!(composer.active_popup, ActivePopup::Command(_)),
             "bare '/' should activate slash popup"
         );
 
         // Case 2: valid prefix "/re" (matches /review, /resume, etc.)
-        composer.set_text_content("/re".to_string());
+        composer.set_text_content("/re".to_string(), Vec::new(), Vec::new());
         assert!(
             matches!(composer.active_popup, ActivePopup::Command(_)),
             "'/re' should activate slash popup via prefix match"
         );
 
         // Case 3: fuzzy match "/ac" (subsequence of /compact and /feedback)
-        composer.set_text_content("/ac".to_string());
+        composer.set_text_content("/ac".to_string(), Vec::new(), Vec::new());
         assert!(
             matches!(composer.active_popup, ActivePopup::Command(_)),
             "'/ac' should activate slash popup via fuzzy match"
@@ -4866,7 +5135,7 @@ mod tests {
         // Case 4: invalid prefix "/zzz" – still allowed to open popup if it
         // matches no built-in command; our current logic will not open popup.
         // Verify that explicitly.
-        composer.set_text_content("/zzz".to_string());
+        composer.set_text_content("/zzz".to_string(), Vec::new(), Vec::new());
         assert!(
             matches!(composer.active_popup, ActivePopup::None),
             "'/zzz' should not activate slash popup because it is not a prefix of any built-in command"
@@ -5001,7 +5270,7 @@ mod tests {
             false,
         );
 
-        composer.set_text_content("hello".to_string());
+        composer.set_text_content("hello".to_string(), Vec::new(), Vec::new());
         composer.set_input_enabled(false, Some("Input disabled for test.".to_string()));
 
         let (result, needs_redraw) =

@@ -1346,6 +1346,8 @@ impl Session {
             role: "user".to_string(),
             content: vec![ContentItem::InputText {
                 text: format!("Warning: {}", message.into()),
+                // Warning messages are synthesized; no UI element ranges to preserve.
+                text_elements: Vec::new(),
             }],
         };
 
@@ -3281,6 +3283,7 @@ mod tests {
                 role: "user".to_string(),
                 content: vec![ContentItem::InputText {
                     text: "turn 1 user".to_string(),
+                    text_elements: Vec::new(),
                 }],
             },
             ResponseItem::Message {
@@ -3299,6 +3302,7 @@ mod tests {
                 role: "user".to_string(),
                 content: vec![ContentItem::InputText {
                     text: "turn 2 user".to_string(),
+                    text_elements: Vec::new(),
                 }],
             },
             ResponseItem::Message {
@@ -3337,6 +3341,7 @@ mod tests {
             role: "user".to_string(),
             content: vec![ContentItem::InputText {
                 text: "turn 1 user".to_string(),
+                text_elements: Vec::new(),
             }],
         }];
         sess.record_into_history(&turn_1, tc.as_ref()).await;
@@ -3945,6 +3950,7 @@ mod tests {
                     content,
                     &vec![ContentItem::InputText {
                         text: "Warning: too many unified exec processes".to_string(),
+                        text_elements: Vec::new(),
                     }]
                 );
             }
@@ -4159,6 +4165,7 @@ mod tests {
             role: "user".to_string(),
             content: vec![ContentItem::InputText {
                 text: "first user".to_string(),
+                text_elements: Vec::new(),
             }],
         };
         live_history.record_items(std::iter::once(&user1), turn_context.truncation_policy);
@@ -4193,6 +4200,7 @@ mod tests {
             role: "user".to_string(),
             content: vec![ContentItem::InputText {
                 text: "second user".to_string(),
+                text_elements: Vec::new(),
             }],
         };
         live_history.record_items(std::iter::once(&user2), turn_context.truncation_policy);
@@ -4227,6 +4235,7 @@ mod tests {
             role: "user".to_string(),
             content: vec![ContentItem::InputText {
                 text: "third user".to_string(),
+                text_elements: Vec::new(),
             }],
         };
         live_history.record_items(std::iter::once(&user3), turn_context.truncation_policy);

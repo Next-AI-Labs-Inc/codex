@@ -158,7 +158,7 @@ impl<'a> ChatRequestBuilder<'a> {
 
                     for c in content {
                         match c {
-                            ContentItem::InputText { text: t }
+                            ContentItem::InputText { text: t, .. }
                             | ContentItem::OutputText { text: t } => {
                                 text.push_str(t);
                                 items.push(json!({"type":"text","text": t}));
@@ -385,6 +385,7 @@ mod tests {
             role: "user".to_string(),
             content: vec![ContentItem::InputText {
                 text: "hi".to_string(),
+                text_elements: Vec::new(),
             }],
         }];
         let req = ChatRequestBuilder::new("gpt-test", "inst", &prompt_input, &[])
@@ -411,6 +412,7 @@ mod tests {
                 role: "user".to_string(),
                 content: vec![ContentItem::InputText {
                     text: "read these".to_string(),
+                    text_elements: Vec::new(),
                 }],
             },
             ResponseItem::FunctionCall {

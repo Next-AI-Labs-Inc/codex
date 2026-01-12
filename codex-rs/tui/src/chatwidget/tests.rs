@@ -1063,7 +1063,8 @@ async fn enqueueing_history_prompt_multiple_times_is_stable() {
     chat.thread_id = Some(ThreadId::new());
 
     // Submit an initial prompt to seed history.
-    chat.bottom_pane.set_composer_text("repeat me".to_string());
+    chat.bottom_pane
+        .set_composer_text("repeat me".to_string(), Vec::new(), Vec::new());
     chat.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
     // Simulate an active task so further submissions are queued.
@@ -1097,7 +1098,7 @@ async fn streaming_final_answer_keeps_task_running_state() {
     assert!(chat.bottom_pane.status_widget().is_none());
 
     chat.bottom_pane
-        .set_composer_text("queued submission".to_string());
+        .set_composer_text("queued submission".to_string(), Vec::new(), Vec::new());
     chat.handle_key_event(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
 
     assert_eq!(chat.queued_user_messages.len(), 1);
@@ -2748,7 +2749,7 @@ async fn interrupt_prepends_queued_messages_before_existing_composer_text() {
 
     chat.bottom_pane.set_task_running(true);
     chat.bottom_pane
-        .set_composer_text("current draft".to_string());
+        .set_composer_text("current draft".to_string(), Vec::new(), Vec::new());
 
     chat.queued_user_messages
         .push_back(UserMessage::from("first queued".to_string()));
@@ -3773,7 +3774,7 @@ async fn chatwidget_exec_and_status_layout_vt100_snapshot() {
         }),
     });
     chat.bottom_pane
-        .set_composer_text("Summarize recent commits".to_string());
+        .set_composer_text("Summarize recent commits".to_string(), Vec::new(), Vec::new());
 
     let width: u16 = 80;
     let ui_height: u16 = chat.desired_height(width);

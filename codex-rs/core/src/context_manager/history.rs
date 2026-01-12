@@ -139,6 +139,21 @@ impl ContextManager {
         };
 
         match &mut self.items[index] {
+            ResponseItem::Message { role, content, .. } if role == "user" => {
+                let mut replaced = false;
+                let placeholder = placeholder.to_string();
+                for item in content.iter_mut() {
+                    if matches!(item, ContentItem::InputImage { .. }) {
+                        *item = ContentItem::InputText {
+                            text: placeholder.clone(),
+                            // Placeholder text is synthesized; no UI element ranges to preserve.
+                            text_elements: Vec::new(),
+                        };
+                        replaced = true;
+                    }
+                }
+                replaced
+            }
             ResponseItem::FunctionCallOutput { output, .. } => {
                 let Some(content_items) = output.content_items.as_mut() else {
                     return false;
@@ -155,7 +170,6 @@ impl ContextManager {
                 }
                 replaced
             }
-            ResponseItem::Message { role, .. } if role == "user" => false,
             _ => false,
         }
     }
@@ -344,7 +358,7 @@ pub(crate) fn is_user_turn_boundary(item: &ResponseItem) -> bool {
 
     for content_item in content {
         match content_item {
-            ContentItem::InputText { text } => {
+            ContentItem::InputText { text, .. } => {
                 if is_session_prefix(text) || is_user_shell_command_text(text) {
                     return false;
                 }

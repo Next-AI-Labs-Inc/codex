@@ -1,4 +1,6 @@
 use crate::key_hint::is_altgr;
+use codex_protocol::user_input::ByteRange;
+use codex_protocol::user_input::TextElement as UserTextElement;
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use crossterm::event::KeyModifiers;
@@ -719,6 +721,22 @@ impl TextArea {
         self.elements
             .iter()
             .filter_map(|e| self.text.get(e.range.clone()).map(str::to_string))
+            .collect()
+    }
+
+    pub fn text_elements(&self) -> Vec<UserTextElement> {
+        self.elements
+            .iter()
+            .map(|e| {
+                let placeholder = self.text.get(e.range.clone()).map(str::to_string);
+                UserTextElement {
+                    byte_range: ByteRange {
+                        start: e.range.start,
+                        end: e.range.end,
+                    },
+                    placeholder,
+                }
+            })
             .collect()
     }
 
