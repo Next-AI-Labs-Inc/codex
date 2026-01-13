@@ -63,15 +63,9 @@ pub enum ResponseInputItem {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema, TS)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentItem {
-    InputText {
-        text: String,
-    },
-    InputImage {
-        image_url: String,
-    },
-    OutputText {
-        text: String,
-    },
+    InputText { text: String },
+    InputImage { image_url: String },
+    OutputText { text: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema, TS)]

@@ -307,7 +307,6 @@ async fn streaming_client_retries_on_transport_error() -> Result<()> {
             role: "user".to_string(),
             content: vec![ContentItem::InputText {
                 text: "hi".to_string(),
-                text_elements: Vec::new(),
             }],
         }],
         tools: Vec::<Value>::new(),

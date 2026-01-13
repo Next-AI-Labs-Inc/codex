@@ -277,8 +277,6 @@ fn build_compacted_history_with_limit(
             role: "user".to_string(),
             content: vec![ContentItem::InputText {
                 text: message.clone(),
-                // Compaction history is synthesized; no UI element ranges to preserve.
-                text_elements: Vec::new(),
             }],
         });
     }
@@ -292,11 +290,7 @@ fn build_compacted_history_with_limit(
     history.push(ResponseItem::Message {
         id: None,
         role: "user".to_string(),
-        content: vec![ContentItem::InputText {
-            text: summary_text,
-            // Compaction summary is synthesized; no UI element ranges to preserve.
-            text_elements: Vec::new(),
-        }],
+        content: vec![ContentItem::InputText { text: summary_text }],
     });
 
     history

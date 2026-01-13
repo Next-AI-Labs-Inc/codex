@@ -37,8 +37,6 @@ impl From<UserInstructions> for ResponseItem {
                     directory = ui.directory,
                     contents = ui.text
                 ),
-                // Instructions are synthesized from disk; no UI element ranges to preserve.
-                text_elements: Vec::new(),
             }],
         }
     }
