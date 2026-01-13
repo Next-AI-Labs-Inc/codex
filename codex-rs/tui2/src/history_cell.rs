@@ -273,7 +273,7 @@ impl HistoryCell for UserHistoryCell {
                     spans.push(Span::from(line_text[(cursor - line_start)..].to_string()));
                 }
                 let line = if spans.is_empty() {
-                    Line::from(line_text).style(style)
+                    Line::from(line_text.to_string()).style(style)
                 } else {
                     Line::from(spans).style(style)
                 };
