@@ -331,6 +331,8 @@ impl App {
         tui: &mut tui::Tui,
         ev: ConversationPathResponseEvent,
     ) -> Result<()> {
+        // Only apply the history response if it matches the pending backtrack request.
+        // This avoids acting on stale responses after another backtrack was queued.
         if let Some((base_id, _, _)) = self.backtrack.pending.as_ref()
             && ev.conversation_id == *base_id
             && let Some((_, nth_user_message, prefill)) = self.backtrack.pending.take()
