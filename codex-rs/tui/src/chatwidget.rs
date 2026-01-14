@@ -1943,6 +1943,17 @@ impl ChatWidget {
                         };
                         self.queue_user_message(user_message);
                     }
+                    InputResult::Queued {
+                        text,
+                        text_elements,
+                    } => {
+                        let user_message = UserMessage {
+                            text,
+                            local_image_paths: self.bottom_pane.take_recent_submission_images(),
+                            text_elements,
+                        };
+                        self.queue_user_message_forced(user_message);
+                    }
                     InputResult::Command(cmd) => {
                         self.dispatch_command(cmd);
                     }
@@ -2273,6 +2284,14 @@ impl ChatWidget {
         }
     }
 
+    fn queue_user_message_forced(&mut self, user_message: UserMessage) {
+        if user_message.text.is_empty() && user_message.local_image_paths.is_empty() {
+            return;
+        }
+        self.queued_user_messages.push_back(user_message);
+        self.refresh_queued_user_messages();
+    }
+
     fn submit_user_message(&mut self, user_message: UserMessage) {
         let UserMessage {
             text,
@@ -2303,8 +2322,8 @@ impl ChatWidget {
             return;
         }
 
-        for path in local_image_paths {
-            items.push(UserInput::LocalImage { path });
+        for path in &local_image_paths {
+            items.push(UserInput::LocalImage { path: path.clone() });
         }
 
         if !text.is_empty() {
@@ -2344,7 +2363,11 @@ impl ChatWidget {
 
         // Only show the text portion in conversation history.
         if !text.is_empty() {
-            self.add_to_history(history_cell::new_user_prompt(text, text_elements));
+            self.add_to_history(history_cell::new_user_prompt(
+                text,
+                text_elements,
+                local_image_paths,
+            ));
         }
 
         self.needs_final_message_separator = false;
@@ -2563,7 +2586,7 @@ impl ChatWidget {
             self.add_to_history(history_cell::new_user_prompt(
                 event.message,
                 event.text_elements,
-                event.local_image_paths,
+                event.local_images,
             ));
         }
     }

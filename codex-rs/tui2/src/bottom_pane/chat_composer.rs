@@ -147,6 +147,10 @@ pub enum InputResult {
         text: String,
         text_elements: Vec<TextElement>,
     },
+    Queued {
+        text: String,
+        text_elements: Vec<TextElement>,
+    },
     Command(SlashCommand),
     CommandWithArgs(SlashCommand, String),
     None,
@@ -1319,7 +1323,7 @@ impl ChatComposer {
     }
 
     /// Prepare text for submission/queuing. Returns None if submission should be suppressed.
-    fn prepare_submission_text(&mut self) -> Option<String> {
+    fn prepare_submission_text(&mut self) -> Option<(String, Vec<TextElement>)> {
         // If we have pending placeholder pastes, replace them in the textarea text
         // and continue to the normal submission flow to handle slash commands.
         if !self.pending_pastes.is_empty() {
@@ -1335,6 +1339,7 @@ impl ChatComposer {
 
         let mut text = self.textarea.text().to_string();
         let original_input = text.clone();
+        let mut text_elements = self.textarea.text_elements();
         let input_starts_with_space = original_input.starts_with(' ');
         self.textarea.set_text("");
 
@@ -1349,6 +1354,7 @@ impl ChatComposer {
         // If there is neither text nor attachments, suppress submission entirely.
         let has_attachments = !self.attached_images.is_empty();
         text = text.trim().to_string();
+        text_elements = Self::trim_text_elements(&original_input, &text, text_elements);
 
         if let Some((name, _rest)) = parse_slash_name(&text) {
             let treat_as_plain_text = input_starts_with_space || name.contains('/');
@@ -1395,6 +1401,8 @@ impl ChatComposer {
         };
         if let Some(expanded) = expanded_prompt {
             text = expanded;
+            // Expanded prompt (e.g. custom prompt) is plain text; no UI element ranges to preserve.
+            text_elements = Vec::new();
         }
         if text.is_empty() && !has_attachments {
             return None;
@@ -1402,7 +1410,7 @@ impl ChatComposer {
         if !text.is_empty() {
             self.history.record_local_submission(&text);
         }
-        Some(text)
+        Some((text, text_elements))
     }
 
     /// Common logic for handling message submission/queuing.
@@ -1455,12 +1463,24 @@ impl ChatComposer {
             return (result, true);
         }
 
-        if let Some(text) = self.prepare_submission_text() {
+        if let Some((text, text_elements)) = self.prepare_submission_text() {
             if should_queue {
-                (InputResult::Queued(text), true)
+                (
+                    InputResult::Queued {
+                        text,
+                        text_elements,
+                    },
+                    true,
+                )
             } else {
                 // Do not clear attached_images here; ChatWidget drains them via take_recent_submission_images().
-                (InputResult::Submitted(text), true)
+                (
+                    InputResult::Submitted {
+                        text,
+                        text_elements,
+                    },
+                    true,
+                )
             }
         } else {
             // Restore text if submission was suppressed
@@ -3139,7 +3159,7 @@ mod tests {
         let (result, _) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
         match result {
-            InputResult::Submitted(text) => assert_eq!(text, "あ"),
+            InputResult::Submitted { text, .. } => assert_eq!(text, "あ"),
             _ => panic!("expected Submitted"),
         }
     }
@@ -3672,7 +3692,7 @@ mod tests {
             InputResult::Submitted { text, .. } => {
                 panic!("expected command dispatch, but composer submitted literal text: {text}")
             }
-            InputResult::Queued(_) => {
+            InputResult::Queued { .. } => {
                 panic!("expected command dispatch, but composer queued literal text")
             }
             InputResult::None => panic!("expected Command result for '/init'"),
@@ -3751,7 +3771,7 @@ mod tests {
             InputResult::Submitted { text, .. } => {
                 panic!("expected command dispatch after Tab completion, got literal submit: {text}")
             }
-            InputResult::Queued(_) => {
+            InputResult::Queued { .. } => {
                 panic!("expected command dispatch after Tab completion, got literal queue")
             }
             InputResult::None => panic!("expected Command result for '/diff'"),
@@ -3790,7 +3810,7 @@ mod tests {
             InputResult::Submitted { text, .. } => {
                 panic!("expected command dispatch, but composer submitted literal text: {text}")
             }
-            InputResult::Queued(_) => {
+            InputResult::Queued { .. } => {
                 panic!("expected command dispatch, but composer queued literal text")
             }
             InputResult::None => panic!("expected Command result for '/mention'"),
@@ -4088,7 +4108,7 @@ mod tests {
 
     // --- Image attachment tests ---
     #[test]
-    fn attach_image_and_submit_includes_image_paths() {
+    fn attach_image_and_submit_includes_local_image_paths() {
         let (tx, _rx) = unbounded_channel::<AppEvent>();
         let sender = AppEventSender::new(tx);
         let mut composer = ChatComposer::new(

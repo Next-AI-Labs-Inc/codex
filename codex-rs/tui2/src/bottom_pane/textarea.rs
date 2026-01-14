@@ -62,10 +62,33 @@ impl TextArea {
         }
     }
 
+    /// Replace the textarea text and clear any existing text elements.
     pub fn set_text(&mut self, text: &str) {
+        self.set_text_inner(text, None);
+    }
+
+    /// Replace the textarea text and set the provided text elements.
+    pub fn set_text_with_elements(&mut self, text: &str, elements: &[UserTextElement]) {
+        self.set_text_inner(text, Some(elements));
+    }
+
+    fn set_text_inner(&mut self, text: &str, elements: Option<&[UserTextElement]>) {
         self.text = text.to_string();
         self.cursor_pos = self.cursor_pos.clamp(0, self.text.len());
         self.elements.clear();
+        if let Some(elements) = elements {
+            for elem in elements {
+                let mut start = elem.byte_range.start.min(self.text.len());
+                let mut end = elem.byte_range.end.min(self.text.len());
+                start = self.clamp_pos_to_char_boundary(start);
+                end = self.clamp_pos_to_char_boundary(end);
+                if start >= end {
+                    continue;
+                }
+                self.elements.push(TextElement { range: start..end });
+            }
+            self.elements.sort_by_key(|e| e.range.start);
+        }
         self.cursor_pos = self.clamp_pos_to_nearest_boundary(self.cursor_pos);
         self.wrap_cache.replace(None);
         self.preferred_col = None;

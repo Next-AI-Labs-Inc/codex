@@ -603,6 +603,7 @@ async fn test_updated_at_uses_file_mtime() -> Result<()> {
         item: RolloutItem::EventMsg(EventMsg::UserMessage(UserMessageEvent {
             message: "hello".into(),
             images: None,
+            local_images: Vec::new(),
             text_elements: Vec::new(),
             local_images: Vec::new(),
         })),

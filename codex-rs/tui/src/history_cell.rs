@@ -161,6 +161,7 @@ impl dyn HistoryCell {
 pub(crate) struct UserHistoryCell {
     pub message: String,
     pub text_elements: Vec<TextElement>,
+    pub local_image_paths: Vec<PathBuf>,
 }
 
 impl HistoryCell for UserHistoryCell {
@@ -937,10 +938,15 @@ pub(crate) fn new_session_info(
     SessionInfoCell(CompositeHistoryCell { parts })
 }
 
-pub(crate) fn new_user_prompt(message: String, text_elements: Vec<TextElement>) -> UserHistoryCell {
+pub(crate) fn new_user_prompt(
+    message: String,
+    text_elements: Vec<TextElement>,
+    local_image_paths: Vec<PathBuf>,
+) -> UserHistoryCell {
     UserHistoryCell {
         message,
         text_elements,
+        local_image_paths,
     }
 }
 
@@ -2636,6 +2642,7 @@ mod tests {
         let cell = UserHistoryCell {
             message: msg.to_string(),
             text_elements: Vec::new(),
+            local_image_paths: Vec::new(),
         };
 
         // Small width to force wrapping more clearly. Effective wrap width is width-2 due to the ▌ prefix and trailing space.

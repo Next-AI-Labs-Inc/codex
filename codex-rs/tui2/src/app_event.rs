@@ -84,6 +84,9 @@ pub(crate) enum AppEvent {
     /// Result of computing a `/diff` command.
     DiffResult(String),
 
+    /// Conversation history response used for backtracking.
+    ConversationHistory(codex_core::protocol::ConversationPathResponseEvent),
+
     InsertHistoryCell(Box<dyn HistoryCell>),
 
     StartCommitAnimation,
