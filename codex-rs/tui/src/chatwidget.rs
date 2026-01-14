@@ -2581,6 +2581,9 @@ impl ChatWidget {
                 event.local_images,
             ));
         }
+
+        // User messages reset separator state so the next agent response doesn't add a stray break.
+        self.needs_final_message_separator = false;
     }
 
     /// Exit the UI immediately without waiting for shutdown.
