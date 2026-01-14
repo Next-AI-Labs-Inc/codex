@@ -412,19 +412,7 @@ impl App {
     ) {
         let thread = new_conv.thread;
         let session_configured = new_conv.session_configured;
-        let init = crate::chatwidget::ChatWidgetInit {
-            config: cfg,
-            model: self.current_model.clone(),
-            frame_requester: tui.frame_requester(),
-            app_event_tx: self.app_event_tx.clone(),
-            initial_prompt: None,
-            initial_images: Vec::new(),
-            enhanced_keys_supported: self.enhanced_keys_supported,
-            auth_manager: self.auth_manager.clone(),
-            models_manager: self.server.get_models_manager(),
-            feedback: self.feedback.clone(),
-            is_first_run: false,
-        };
+        let init = self.chatwidget_init_from_existing_thread(tui, cfg);
         self.chat_widget =
             crate::chatwidget::ChatWidget::new_from_existing(init, thread, session_configured);
         // Trim transcript up to the selected user message and re-render it.
