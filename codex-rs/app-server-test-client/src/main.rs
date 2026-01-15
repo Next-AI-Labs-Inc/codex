@@ -479,6 +479,7 @@ impl CodexClient {
                 conversation_id: *conversation_id,
                 items: vec![InputItem::Text {
                     text: message.to_string(),
+                    // Test client sends plain text without UI element ranges.
                     text_elements: Vec::new(),
                 }],
             },
