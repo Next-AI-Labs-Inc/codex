@@ -1375,7 +1375,13 @@ impl ChatComposer {
 
         let mut text = self.textarea.text().to_string();
         let original_input = text.clone();
-        let mut text_elements = self.textarea.text_elements();
+        let original_text_elements = self.textarea.text_elements();
+        let original_local_image_paths = self
+            .attached_images
+            .iter()
+            .map(|img| img.path.clone())
+            .collect::<Vec<_>>();
+        let mut text_elements = original_text_elements.clone();
         let input_starts_with_space = original_input.starts_with(' ');
         self.textarea.set_text("");
 
@@ -1417,7 +1423,11 @@ impl ChatComposer {
                     self.app_event_tx.send(AppEvent::InsertHistoryCell(Box::new(
                         history_cell::new_info_event(message, None),
                     )));
-                    self.textarea.set_text(&original_input);
+                    self.set_text_content(
+                        original_input.clone(),
+                        original_text_elements,
+                        original_local_image_paths,
+                    );
                     self.textarea.set_cursor(original_input.len());
                     return None;
                 }
@@ -1430,7 +1440,11 @@ impl ChatComposer {
                 self.app_event_tx.send(AppEvent::InsertHistoryCell(Box::new(
                     history_cell::new_error_event(err.user_message()),
                 )));
-                self.textarea.set_text(&original_input);
+                self.set_text_content(
+                    original_input.clone(),
+                    original_text_elements,
+                    original_local_image_paths,
+                );
                 self.textarea.set_cursor(original_input.len());
                 return None;
             }
@@ -1495,6 +1509,12 @@ impl ChatComposer {
         }
 
         let original_input = self.textarea.text().to_string();
+        let original_text_elements = self.textarea.text_elements();
+        let original_local_image_paths = self
+            .attached_images
+            .iter()
+            .map(|img| img.path.clone())
+            .collect::<Vec<_>>();
         if let Some(result) = self.try_dispatch_slash_command_with_args() {
             return (result, true);
         }
@@ -1519,8 +1539,13 @@ impl ChatComposer {
                 )
             }
         } else {
-            // Restore text if submission was suppressed
-            self.textarea.set_text(&original_input);
+            // Restore text if submission was suppressed.
+            self.set_text_content(
+                original_input.clone(),
+                original_text_elements,
+                original_local_image_paths,
+            );
+            self.textarea.set_cursor(original_input.len());
             (InputResult::None, true)
         }
     }
