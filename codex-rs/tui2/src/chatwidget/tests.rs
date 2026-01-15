@@ -134,7 +134,6 @@ async fn resumed_initial_messages_render_history() {
                 images: None,
                 local_images: Vec::new(),
                 text_elements: Vec::new(),
-                local_images: Vec::new(),
             }),
             EventMsg::AgentMessage(AgentMessageEvent {
                 message: "assistant reply".to_string(),

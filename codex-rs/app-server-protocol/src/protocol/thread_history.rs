@@ -255,7 +255,6 @@ mod tests {
                 images: Some(vec!["https://example.com/one.png".into()]),
                 local_images: Vec::new(),
                 text_elements: Vec::new(),
-                local_images: Vec::new(),
             }),
             EventMsg::AgentMessage(AgentMessageEvent {
                 message: "Hi there".into(),
@@ -271,7 +270,6 @@ mod tests {
                 images: None,
                 local_images: Vec::new(),
                 text_elements: Vec::new(),
-                local_images: Vec::new(),
             }),
             EventMsg::AgentMessage(AgentMessageEvent {
                 message: "Reply two".into(),
@@ -346,7 +344,6 @@ mod tests {
                 images: None,
                 local_images: Vec::new(),
                 text_elements: Vec::new(),
-                local_images: Vec::new(),
             }),
             EventMsg::AgentReasoning(AgentReasoningEvent {
                 text: "first summary".into(),
@@ -393,7 +390,6 @@ mod tests {
                 images: None,
                 local_images: Vec::new(),
                 text_elements: Vec::new(),
-                local_images: Vec::new(),
             }),
             EventMsg::AgentMessage(AgentMessageEvent {
                 message: "Working...".into(),
@@ -406,7 +402,6 @@ mod tests {
                 images: None,
                 local_images: Vec::new(),
                 text_elements: Vec::new(),
-                local_images: Vec::new(),
             }),
             EventMsg::AgentMessage(AgentMessageEvent {
                 message: "Second attempt complete.".into(),
@@ -467,7 +462,6 @@ mod tests {
                 images: None,
                 local_images: Vec::new(),
                 text_elements: Vec::new(),
-                local_images: Vec::new(),
             }),
             EventMsg::AgentMessage(AgentMessageEvent {
                 message: "A1".into(),
@@ -477,7 +471,6 @@ mod tests {
                 images: None,
                 local_images: Vec::new(),
                 text_elements: Vec::new(),
-                local_images: Vec::new(),
             }),
             EventMsg::AgentMessage(AgentMessageEvent {
                 message: "A2".into(),
@@ -488,7 +481,6 @@ mod tests {
                 images: None,
                 local_images: Vec::new(),
                 text_elements: Vec::new(),
-                local_images: Vec::new(),
             }),
             EventMsg::AgentMessage(AgentMessageEvent {
                 message: "A3".into(),
@@ -545,7 +537,6 @@ mod tests {
                 images: None,
                 local_images: Vec::new(),
                 text_elements: Vec::new(),
-                local_images: Vec::new(),
             }),
             EventMsg::AgentMessage(AgentMessageEvent {
                 message: "A1".into(),
@@ -555,7 +546,6 @@ mod tests {
                 images: None,
                 local_images: Vec::new(),
                 text_elements: Vec::new(),
-                local_images: Vec::new(),
             }),
             EventMsg::AgentMessage(AgentMessageEvent {
                 message: "A2".into(),

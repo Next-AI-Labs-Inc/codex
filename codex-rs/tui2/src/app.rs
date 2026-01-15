@@ -434,7 +434,7 @@ impl App {
             models_manager: self.server.get_models_manager(),
             feedback: self.feedback.clone(),
             is_first_run: false,
-            model: self.current_model.clone(),
+            model: Some(self.current_model.clone()),
         }
     }
 
