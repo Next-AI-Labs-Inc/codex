@@ -1928,11 +1928,7 @@ impl ChatWidget {
                         local_image_paths: self.bottom_pane.take_recent_submission_images(),
                         text_elements,
                     };
-                    if !self.is_session_configured() {
-                        self.queue_user_message(user_message);
-                    } else {
-                        self.submit_user_message(user_message);
-                    }
+                    self.queue_user_message(user_message);
                 }
                 InputResult::Queued {
                     text,
