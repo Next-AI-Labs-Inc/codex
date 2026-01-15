@@ -1923,13 +1923,17 @@ impl ChatWidget {
                     text,
                     text_elements,
                 } => {
-                    // Enter should submit immediately when possible, even if a task is running.
                     let user_message = UserMessage {
                         text,
                         local_image_paths: self.bottom_pane.take_recent_submission_images(),
                         text_elements,
                     };
-                    if self.bottom_pane.steer_enabled() && self.is_session_configured() {
+                    if self.is_session_configured() {
+                        // Submitted is only emitted when steer is enabled (Enter sends immediately).
+                        // Reset any reasoning header only when we are actually submitting a turn.
+                        self.reasoning_buffer.clear();
+                        self.full_reasoning_buffer.clear();
+                        self.set_status_header(String::from("Working"));
                         self.submit_user_message(user_message);
                     } else {
                         self.queue_user_message(user_message);
