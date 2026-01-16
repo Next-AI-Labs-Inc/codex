@@ -1,0 +1,5 @@
+Final Status Check after Close-Out
+
+1. Run `spec review -a "<feature>"` (or confirm it was already run) so the alignment evidence, code-principle audit, and emoji intent markers live in the snapshot. If it is missing, stop and log it before sending any update.
+2. Re-send the Status Check referencing the close-out report path plus the review evidence you just logged. List which acceptance criteria passed/failed and which follow-ups remain.
+3. Remind reviewers that outstanding blockers are already documented in the clarifications log so they know why gaps exist.

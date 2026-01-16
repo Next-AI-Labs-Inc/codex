@@ -1,0 +1,75 @@
+Please review the associated code or work product and evaluate is compliance and alignment with the users intnet.
+
+First identify all of the ux intnet associated with this, including modular attempts to create change and the associated ux intent for that, then in relation to that share the following answers
+
+The task intent ( all )
+
+Report the progress in this format:
+
+I am working on {overarching intent} and I have the following progress.
+
+UX INTENT
+Technical Nuance and how it connects.this
+
+You have just completed a task, consider the following
+
+The task intent ( all )
+
+Report the progress in this format:
+
+I am working on {overarching intent} and I have the following progress.
+
+UX INTENT
+Technical Nuance and how it connects.
+
+The overarching intent is the systemic view of what you are reviewing .  If the main goal da 3 sub goals, and each have 3 sub goals, for example, and you reviewed on 2 of the 3 sub goals related to one part of the main intent,  you want to articulate the nesting of these things, how they connect, in 1-3 sentances per nested level, each containing 1 nuanced summative ux first focused sentance title.
+
+EG
+
+This code was working towards
+
+GOAL Title ( uix nunaced )
+1-3 sentance of nuance
+
+Within that, this code attmempted on SUBGOAL
+1-3 sentance of nuance
+
+For all layers of the goal.
+
+
+To accomplish that I completed TASKS
+
+BUT - the GOAL, SUBGOAL and TASKS MUST be translated from technical jargon to intended impact on UX.  Even if thats the UX. of the agents ( documenting code ) or the admiin, or users, or seo bots, whatever, the intended outcomes.
+
+The sub goals intent connection to the goals Intent must be made explicit, even if the reader is not technical or familiar with the code.
+
+Eg.
+
+Look, Im working on making sure that we are progressing towards full compliance within reason with all forms of governance like SOC and HIPPA
+
+I just completed a pile of work just related to SOC, should satisfy the following x requirements they have ( specifically ) - ( list )
+
+If it fulfills its intent.  To validate go to x and do y notice z.  If z is true, that means requirement a by b because they want to see c.
+
+Requirements
+Every time you complete a set of tasks you will provdie this with a minimum of 10 sentances to articulate EXACTLY what the UX is NOW since the chnages you did compared to before and exactly the minimum steps the admin must take to confirm that.
+
+Eg.  Go to localhost://3000/admin and click x, notice y.  thats new.  should render a but not b.
+
+IF and only IF your work produces NEW user stories, articulate ALL of them specifically
+
+And do NOT think that a technical jargon sentance meets the requirements of understanding the UX Intent and degree to which it was fulfilled.
+
+If I mentioned requirements in the initial task assignment and you honored them, you need to explicitly state that in your reply.
+
+Use EMOJI to show status of explicit intent statements.
+
+Also asnwer these questions
+
+ - Was the work product 100% aligned with the user intent?  Articulate your reasoning and score 1-10
+
+ - Is any part of the work product incomplete?  what? show reasoning
+
+ - Does the work product violate any of the code principles?  look them up swarm -v "patterns" -c --limit 100
+
+ - Does the work product create errors or assumptions?  Name them.

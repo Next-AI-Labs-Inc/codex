@@ -1,0 +1,18 @@
+### Complexity Gate – decide the path before you spec
+
+This step fires automatically during `spec capture` so you only consume the workflow that matches the UX impact you are about to create. Pick **one** tier and follow the linked instructions exactly—do not invent hybrids.
+
+1. **SIMPLE (styling/copy/one-screen tweaks)**
+   - Examples: “Change that color to black”, rename a label, adjust padding, add a log line.
+   - Action: Stop the spec workflow now. Log the work via the standard Status Check template (alignment → implement → single UX validation paragraph). Capture before/after screenshots or admin steps, but skip `spec check/progress/review`.
+2. **STRUCTURED (multi-step UX or data flow)**
+   - Examples: new admin form, API changes, anything that affects state, routing, or multiple personas.
+   - Action: Run the full spec journey: `spec check` before coding, `spec progress` after every UX-impacting chunk, `spec artifact` for docs, `spec review -a <feature>` once your review template is filled, then `spec close`.
+3. **CRITICAL (compliance/payments/cross-system or high-risk work)**
+   - Examples: SOC/HIPAA flows, subscription changes, logging pipelines, anything that impacts money, privacy, or cross-product navigation.
+   - Action: Break the feature into nested GOAL → SUBGOAL → TASK blocks inside the spec. After every subgoal run `spec milestone`, then continue with the STRUCTURED path, but treat review evidence as a hard blocker before completion.
+
+Rules:
+- If you started SIMPLE but discover a larger UX change, rerun `spec capture` with STRUCTURED or CRITICAL before continuing.
+- Never downgrade from STRUCTURED/CRITICAL to SIMPLE mid-task without user approval; doing so hides required review checkpoints.
+- Document the level in `complexity_level` so downstream agents and the console can see why you either skipped or enforced the heavier stages.

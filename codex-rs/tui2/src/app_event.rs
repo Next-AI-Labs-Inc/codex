@@ -47,8 +47,8 @@ pub(crate) enum AppEvent {
     /// Open the resume picker inside the running TUI session.
     OpenResumePicker,
 
-    /// Fork the current session into a new thread.
-    ForkCurrentSession,
+    /// Open the fork picker inside the running TUI session.
+    OpenForkPicker,
 
     /// Request to exit the application.
     ///
@@ -85,6 +85,12 @@ pub(crate) enum AppEvent {
     DiffResult(String),
 
     InsertHistoryCell(Box<dyn HistoryCell>),
+
+    /// Enable the Spec extension for this session.
+    EnableSpecSession { debug: bool },
+
+    /// Disable the Spec extension for this session.
+    DisableSpecSession,
 
     StartCommitAnimation,
     StopCommitAnimation,

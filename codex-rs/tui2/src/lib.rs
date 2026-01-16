@@ -15,7 +15,6 @@ use codex_core::AuthManager;
 use codex_core::CodexAuth;
 use codex_core::INTERACTIVE_SESSION_SOURCES;
 use codex_core::RolloutRecorder;
-use codex_core::ThreadSortKey;
 use codex_core::auth::enforce_login_restrictions;
 use codex_core::config::Config;
 use codex_core::config::ConfigOverrides;
@@ -32,6 +31,7 @@ use codex_utils_absolute_path::AbsolutePathBuf;
 use std::fs::OpenOptions;
 use std::path::PathBuf;
 use tracing::error;
+use tracing::warn;
 use tracing_appender::non_blocking;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::prelude::*;
@@ -75,6 +75,7 @@ mod selection_list;
 mod session_log;
 mod shimmer;
 mod slash_command;
+mod spec_integration;
 mod status;
 mod status_indicator_widget;
 mod streaming;
@@ -111,6 +112,8 @@ pub use cli::Cli;
 pub use markdown_render::render_markdown_text;
 pub use public_widgets::composer_input::ComposerAction;
 pub use public_widgets::composer_input::ComposerInput;
+use spec_integration::bootstrap_spec_session;
+use spec_integration::SpecSessionConfig;
 use std::io::Write as _;
 
 // (tests access modules directly within the crate)
@@ -501,7 +504,6 @@ async fn run_ratatui_app(
                 &config.codex_home,
                 1,
                 None,
-                ThreadSortKey::UpdatedAt,
                 INTERACTIVE_SESSION_SOURCES,
                 Some(provider_filter.as_slice()),
                 &config.model_provider_id,
@@ -554,9 +556,6 @@ async fn run_ratatui_app(
         };
         match RolloutRecorder::find_latest_thread_path(
             &config.codex_home,
-            1,
-            None,
-            ThreadSortKey::UpdatedAt,
             INTERACTIVE_SESSION_SOURCES,
             Some(provider_filter.as_slice()),
             &config.model_provider_id,
@@ -591,6 +590,20 @@ async fn run_ratatui_app(
         }
     } else {
         resume_picker::SessionSelection::StartFresh
+    };
+
+    let spec_session = match bootstrap_spec_session(
+        &config,
+        SpecSessionConfig {
+            enabled: cli.spec,
+            debug: cli.spec_debug,
+        },
+    ) {
+        Ok(session) => session,
+        Err(err) => {
+            warn!("Spec extension failed to start: {err}");
+            None
+        }
     };
 
     let Cli {
@@ -639,6 +652,7 @@ async fn run_ratatui_app(
         feedback,
         should_show_trust_screen, // Proxy to: is it a first run in this directory?
         ollama_chat_support_notice,
+        spec_session,
     )
     .await;
 

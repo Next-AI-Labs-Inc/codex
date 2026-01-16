@@ -1,0 +1,6 @@
+# UI build artifacts
+node_modules/
+dist/
+build/
+.next/
+*.log

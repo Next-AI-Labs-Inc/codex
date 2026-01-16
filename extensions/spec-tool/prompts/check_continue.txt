@@ -1,0 +1,3 @@
+Clarification Complete → Keep Shipping
+
+You have logged every open question. Document blockers in the clarifications log, then keep building. Do not pause for permission unless the spec explicitly says to wait. Reference the log in future updates so reviewers know why unresolved items remain.

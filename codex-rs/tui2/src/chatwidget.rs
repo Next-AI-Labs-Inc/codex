@@ -150,6 +150,7 @@ use crate::render::renderable::Renderable;
 use crate::render::renderable::RenderableExt;
 use crate::render::renderable::RenderableItem;
 use crate::slash_command::SlashCommand;
+use crate::spec_integration::SpecLogger;
 use crate::status::RateLimitSnapshotDisplay;
 use crate::text_formatting::truncate_text;
 use crate::tui::FrameRequester;
@@ -306,6 +307,7 @@ pub(crate) struct ChatWidgetInit {
     pub(crate) feedback: codex_feedback::CodexFeedback,
     pub(crate) is_first_run: bool,
     pub(crate) model: Option<String>,
+    pub(crate) spec_logger: Option<SpecLogger>,
 }
 
 #[derive(Default)]
@@ -383,7 +385,6 @@ pub(crate) struct ChatWidget {
     // Previous status header to restore after a transient stream retry.
     retry_status_header: Option<String>,
     conversation_id: Option<ThreadId>,
-    forked_from: Option<ThreadId>,
     frame_requester: FrameRequester,
     // Whether to include the initial welcome banner on session configured
     show_welcome_banner: bool,
@@ -423,6 +424,7 @@ pub(crate) struct ChatWidget {
     feedback: codex_feedback::CodexFeedback,
     // Current session rollout path (if known)
     current_rollout_path: Option<PathBuf>,
+    spec_logger: Option<SpecLogger>,
 }
 
 /// Snapshot of active-cell state that affects transcript overlay rendering.
@@ -480,6 +482,31 @@ fn create_initial_user_message(text: String, image_paths: Vec<PathBuf>) -> Optio
     }
 }
 
+fn transcript_lines_to_text(lines: Vec<Line<'static>>) -> String {
+    let mut output = String::new();
+    for line in lines {
+        let mut line_text = String::new();
+        for span in line.spans {
+            line_text.push_str(&span.content);
+        }
+        let trimmed = line_text.trim_end();
+        let stripped = trimmed
+            .strip_prefix("• ")
+            .or_else(|| trimmed.strip_prefix("› "))
+            .or_else(|| trimmed.strip_prefix("  "))
+            .unwrap_or(trimmed)
+            .trim_end();
+        if stripped.is_empty() {
+            continue;
+        }
+        if !output.is_empty() {
+            output.push('\n');
+        }
+        output.push_str(stripped);
+    }
+    output.trim().to_string()
+}
+
 impl ChatWidget {
     /// Synchronize the bottom-pane "task running" indicator with the current lifecycles.
     ///
@@ -523,7 +550,6 @@ impl ChatWidget {
             .set_history_metadata(event.history_log_id, event.history_entry_count);
         self.set_skills(None);
         self.conversation_id = Some(event.session_id);
-        self.forked_from = event.forked_from_id;
         self.current_rollout_path = Some(event.rollout_path.clone());
         let initial_messages = event.initial_messages.clone();
         let model_for_header = event.model.clone();
@@ -1442,6 +1468,7 @@ impl ChatWidget {
             feedback,
             is_first_run,
             model,
+            spec_logger,
         } = common;
         let mut config = config;
         let model = model.filter(|m| !m.trim().is_empty());
@@ -1504,7 +1531,6 @@ impl ChatWidget {
             current_status_header: String::from("Working"),
             retry_status_header: None,
             conversation_id: None,
-            forked_from: None,
             queued_user_messages: VecDeque::new(),
             show_welcome_banner: is_first_run,
             suppress_session_configured_redraw: false,
@@ -1518,6 +1544,7 @@ impl ChatWidget {
             last_rendered_width: std::cell::Cell::new(None),
             feedback,
             current_rollout_path: None,
+            spec_logger,
         };
 
         widget.prefetch_rate_limits();
@@ -1545,6 +1572,7 @@ impl ChatWidget {
             models_manager,
             feedback,
             model,
+            spec_logger,
             ..
         } = common;
         let model = model.filter(|m| !m.trim().is_empty());
@@ -1601,7 +1629,6 @@ impl ChatWidget {
             current_status_header: String::from("Working"),
             retry_status_header: None,
             conversation_id: None,
-            forked_from: None,
             queued_user_messages: VecDeque::new(),
             show_welcome_banner: false,
             suppress_session_configured_redraw: true,
@@ -1615,6 +1642,7 @@ impl ChatWidget {
             last_rendered_width: std::cell::Cell::new(None),
             feedback,
             current_rollout_path: None,
+            spec_logger,
         };
 
         widget.prefetch_rate_limits();
@@ -1773,7 +1801,7 @@ impl ChatWidget {
                 self.app_event_tx.send(AppEvent::OpenResumePicker);
             }
             SlashCommand::Fork => {
-                self.app_event_tx.send(AppEvent::ForkCurrentSession);
+                self.app_event_tx.send(AppEvent::OpenForkPicker);
             }
             SlashCommand::Init => {
                 let init_target = self.config.cwd.join(DEFAULT_PROJECT_DOC_FILENAME);
@@ -1883,6 +1911,9 @@ impl ChatWidget {
             SlashCommand::Mcp => {
                 self.add_mcp_output();
             }
+            SlashCommand::Extensions => {
+                self.open_extensions_popup();
+            }
             SlashCommand::Rollout => {
                 if let Some(path) = self.rollout_path() {
                     self.add_info_message(
@@ -1957,6 +1988,26 @@ impl ChatWidget {
                     },
                 });
             }
+            SlashCommand::Extensions if !trimmed.is_empty() => {
+                let normalized = trimmed.to_lowercase();
+                if normalized.starts_with("spec") {
+                    let wants_disable =
+                        normalized.contains("disable") || normalized.contains("off");
+                    let debug = normalized
+                        .split_whitespace()
+                        .any(|part| part == "debug" || part == "--debug");
+                    if wants_disable {
+                        self.app_event_tx.send(AppEvent::DisableSpecSession);
+                    } else {
+                        self.app_event_tx
+                            .send(AppEvent::EnableSpecSession { debug });
+                    }
+                } else {
+                    self.add_error_message(format!(
+                        "Unknown extension '{trimmed}'. Try '/extensions' for available options."
+                    ));
+                }
+            }
             _ => self.dispatch_command(cmd),
         }
     }
@@ -1995,6 +2046,8 @@ impl ChatWidget {
     }
 
     fn add_boxed_history(&mut self, cell: Box<dyn HistoryCell>) {
+        self.log_history_cell_to_spec(cell.as_ref());
+
         // Keep the placeholder session header as the active cell until real session info arrives,
         // so we can merge headers instead of committing a duplicate box to history.
         let keep_placeholder_header_active = !self.is_session_configured()
@@ -2009,6 +2062,27 @@ impl ChatWidget {
             self.needs_final_message_separator = true;
         }
         self.app_event_tx.send(AppEvent::InsertHistoryCell(cell));
+    }
+
+    fn log_history_cell_to_spec(&self, cell: &dyn HistoryCell) {
+        let Some(logger) = &self.spec_logger else {
+            return;
+        };
+
+        if let Some(user) = cell.as_any().downcast_ref::<history_cell::UserHistoryCell>() {
+            let message = user.message.trim();
+            if !message.is_empty() {
+                logger.log_message("user", message);
+            }
+            return;
+        }
+
+        if let Some(agent) = cell.as_any().downcast_ref::<history_cell::AgentMessageCell>() {
+            let text = transcript_lines_to_text(agent.transcript_lines(u16::MAX));
+            if !text.is_empty() {
+                logger.log_message("assistant", &text);
+            }
+        }
     }
 
     #[allow(dead_code)] // Used in tests
@@ -2404,7 +2478,6 @@ impl ChatWidget {
             token_info,
             total_usage,
             &self.conversation_id,
-            self.forked_from,
             self.rate_limit_snapshot.as_ref(),
             self.plan_type,
             Local::now(),
@@ -3025,6 +3098,63 @@ impl ChatWidget {
             header: Box::new(()),
             ..Default::default()
         });
+    }
+
+    pub(crate) fn open_extensions_popup(&mut self) {
+        let spec_active = self.spec_logger.is_some();
+        let mut items: Vec<SelectionItem> = Vec::new();
+
+        let spec_action: SelectionAction = if spec_active {
+            Box::new(|tx| {
+                tx.send(AppEvent::DisableSpecSession);
+            })
+        } else {
+            Box::new(|tx| {
+                tx.send(AppEvent::EnableSpecSession { debug: false });
+            })
+        };
+
+        items.push(SelectionItem {
+            name: "Spec tool".to_string(),
+            description: Some(
+                "Launch the Spec UI and stream conversation logs into ~/.codex/extensions/spec-tool."
+                    .to_string(),
+            ),
+            selected_description: Some(if spec_active {
+                "Disable Spec logging for this session.".to_string()
+            } else {
+                "Enable Spec logging for this session.".to_string()
+            }),
+            is_current: spec_active,
+            actions: vec![spec_action],
+            dismiss_on_select: true,
+            ..Default::default()
+        });
+
+        if !spec_active {
+            items.push(SelectionItem {
+                name: "Spec tool (debug logs)".to_string(),
+                description: Some(
+                    "Enable Spec with verbose terminal logs for validation.".to_string(),
+                ),
+                selected_description: Some("Enable Spec with debug logs.".to_string()),
+                is_current: false,
+                actions: vec![Box::new(|tx| {
+                    tx.send(AppEvent::EnableSpecSession { debug: true });
+                })],
+                dismiss_on_select: true,
+                ..Default::default()
+            });
+        }
+
+        self.bottom_pane.show_selection_view(SelectionViewParams {
+            title: Some("Extensions".to_string()),
+            subtitle: Some("Enable optional tools for this session.".to_string()),
+            footer_hint: Some(standard_popup_hint_line()),
+            items,
+            ..Default::default()
+        });
+        self.request_redraw();
     }
 
     fn approval_preset_actions(
@@ -3666,6 +3796,14 @@ impl ChatWidget {
     pub(crate) fn add_info_message(&mut self, message: String, hint: Option<String>) {
         self.add_to_history(history_cell::new_info_event(message, hint));
         self.request_redraw();
+    }
+
+    pub(crate) fn set_spec_logger(&mut self, logger: SpecLogger) {
+        self.spec_logger = Some(logger);
+    }
+
+    pub(crate) fn clear_spec_logger(&mut self) {
+        self.spec_logger = None;
     }
 
     pub(crate) fn add_plain_history_lines(&mut self, lines: Vec<Line<'static>>) {

@@ -102,6 +102,14 @@ pub struct Cli {
     #[arg(long = "add-dir", value_name = "DIR", value_hint = ValueHint::DirPath)]
     pub add_dir: Vec<PathBuf>,
 
+    /// Enable the Spec extension (UI + conversation logging).
+    #[arg(long = "spec", default_value_t = false)]
+    pub spec: bool,
+
+    /// Emit Spec extension debug logs to the terminal.
+    #[arg(long = "spec-debug", default_value_t = false, requires = "spec")]
+    pub spec_debug: bool,
+
     /// Disable alternate screen mode
     ///
     /// Runs the TUI in inline mode, preserving terminal scrollback history. This is useful

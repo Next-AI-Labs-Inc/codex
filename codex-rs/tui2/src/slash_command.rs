@@ -28,6 +28,7 @@ pub enum SlashCommand {
     Mention,
     Status,
     Mcp,
+    Extensions,
     Logout,
     Quit,
     Exit,
@@ -46,7 +47,7 @@ impl SlashCommand {
             SlashCommand::Compact => "summarize conversation to prevent hitting the context limit",
             SlashCommand::Review => "review my current changes and find issues",
             SlashCommand::Resume => "resume a saved chat",
-            SlashCommand::Fork => "fork the current chat",
+            SlashCommand::Fork => "fork a saved chat",
             // SlashCommand::Undo => "ask Codex to undo a turn",
             SlashCommand::Quit | SlashCommand::Exit => "exit Codex",
             SlashCommand::Diff => "show git diff (including untracked files)",
@@ -57,6 +58,7 @@ impl SlashCommand {
             SlashCommand::Approvals => "choose what Codex can do without approval",
             SlashCommand::ElevateSandbox => "set up elevated agent sandbox",
             SlashCommand::Mcp => "list configured MCP tools",
+            SlashCommand::Extensions => "show optional extensions and how to enable them",
             SlashCommand::Logout => "log out of Codex",
             SlashCommand::Rollout => "print the rollout file path",
             SlashCommand::TestApproval => "test approval request",
@@ -88,6 +90,7 @@ impl SlashCommand {
             | SlashCommand::Skills
             | SlashCommand::Status
             | SlashCommand::Mcp
+            | SlashCommand::Extensions
             | SlashCommand::Feedback
             | SlashCommand::Quit
             | SlashCommand::Exit => true,
