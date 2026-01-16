@@ -1,0 +1,5 @@
+Before capture you must initialize swarm memory:
+1) Open a terminal at the repo root.
+2) Run `swarm` (no arguments) to load READ/WRITE instructions.
+3) Scan for relevant memories.
+Only after finishing those steps should you press Enter to continue with `bin/spec capture`. Document blockers in the spec, but do not stop work once they’re logged—keep moving through the workflow.

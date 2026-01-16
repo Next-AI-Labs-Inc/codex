@@ -1,0 +1,18 @@
+Progress Update (run after every UX-impacting sub-step)
+
+Use this template immediately after you finish a slice of work so the Epic UI shows exactly how intent is being fulfilled. Minimum 10 sentences describing UX-now vs UX-before are required.
+
+When you list tasks, concerns, or intent confirmations, prefix each line with a bracketed status label like `[actionable]`, `[done]`, or `[for review]` so the UI can display badges automatically.
+
+1. Restate the overarching intent in UX terms.
+2. Name the subgoal you just advanced and describe how it ladders up to the overarching intent.
+3. List the completed sub-steps (emoji + UX phrasing). Do not use code-only jargon.
+4. Explain the technical nuance and how it connects back to the UX promise.
+5. Describe the UX now versus before in at least 10 sentences. Make it so an admin with no code context can understand the delta.
+6. Provide exact validation instructions (“Go to http://..., click X, notice Y… if Y is true that proves requirement A because B wants to see C.”).
+7. Explicitly call out which original requirements were honored or deferred.
+8. If new user stories emerge, list them verbatim (“As an admin…” etc.).
+9. Use emoji to show the status of each explicit intent confirmation line.
+10. End with the copy/paste block emitted by this command so observers can drop it straight into the Epic UI.
+
+If you shipped docs/runbooks, log them with `spec artifact <feature>` before sending this update so the UI can surface those links.

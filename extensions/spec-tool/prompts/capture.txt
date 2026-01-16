@@ -1,0 +1,23 @@
+## Capture Prompt
+
+Use this script whenever you run `spec-cli capture "<FEATURE>"`. Do not proceed until every section is answered with facts from the task/scope. **Never invent context**—if something is unknown, mark it with `[Needs Clarification: ...]`. For truly small tasks, keep each section short but still grounded in reality.
+
+1. Feature name, task ID (if assigned), repo name, and the specific files/paths this work touches.
+2. Intent paragraph with **at least 5 sentences** explaining the goal, why it matters now, and what success looks like in UX terms.  Do not hallucinate changes or scope increases. 
+3. Context: origin of the request, constraints (budget/time/tech), and strategic leverage if any.  
+4. User stories for each persona that is stated explicitly as critical.  If this is only an admin feature, should be all new verifiable specific user stories for the admin.  If this spec is for a user facing only task, articulate all new user stories that will be true if this spec is done correctly.  If it touches both, handle both.  (“As a … I want … so that …”) covering customers, admins, etc.
+5. Acceptance criteria / functional requirements mapped to those stories.
+6. Non-functional requirements (performance, UX, integrations, compliance).
+7. Deliverables (exact artifacts), dependencies (tools, specs, services), and sequence/order with rationale.
+8. Validation metrics, signoff requirements, and success criteria.
+9. Future-proofing notes: what stays human-in-loop vs. automated later.
+10. Meta-spec summary: one sentence combining intent + context + stories + requirements.
+11. Open questions (mark with `[Needs Clarification: ...]`).
+12. Swarm tags indicating which swarms should run.
+
+Notes:
+- If a section is not applicable, explicitly state `[Not Applicable: reason]` instead of fabricating detail.
+- Keep the spec proportional to the task. Small fixes still need clarity (intent, criteria, constraints) but do not require elaborate narratives beyond what exists in the source docs.
+
+
+It is absolutely critical that all of your context honors the translate command.  

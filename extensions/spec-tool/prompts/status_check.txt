@@ -1,0 +1,17 @@
+Status Check (send to requester now)
+
+State the UX gap and the target versus reality for the task you are on. Conversationally explain what was done, where we are, and what is next. Then list these confirmations with emojis, one per line, never combining items:
+Problem isolation
+Intent of client confirmed (UX version)
+Consent attained on solution planned
+Solution implemented
+TDD implemented (list new functionality; mark any lacking coverage)
+TDD assumptions confirmed
+Assumptions made during development confirmed
+Intent of existing functionality impacted confirmed
+All mocks used follow new code strategy
+No unauthorized functionality added, scope added, features added, or functionality removed
+FULL paths of all files changed, grouped by unstaged / staged / committed
+What’s next (for authorization)
+
+Always include the repo name (example: self : data/tasks.json). If any item is skipped, explain the failure in UX terms. After sending this status check, continue work immediately—do not wait for permission unless explicitly told to stop.

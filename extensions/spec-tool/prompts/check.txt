@@ -1,0 +1,11 @@
+## Check Prompt
+
+Use before coding or testing:
+
+1. For each open question in the snapshot, decide:
+   - **Resolved** – note the exact answer or link proving it.
+   - **Deferred** – explain the condition needed before work continues.
+   - **Escalate** – who needs to decide, and by when.
+2. Record every decision with timestamp + initials in `clarifications/<feature>.log`.
+3. If any question remains unresolved, document why work continues anyway.
+4. If swarm tags exist, state whether the related swarm will run now or later.

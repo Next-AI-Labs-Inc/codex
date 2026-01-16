@@ -1,0 +1,6 @@
+Task Completion Module - COMPLETION
+
+Template:
+“Hey, to {specific intent} in {context} I {specific changes} which should {UX before/after impact} so that {intent specifics}. Please visit {path to review} and notice {expected change}, confirming that {failure condition} did not happen. npm run agent-verify has been executed; no outstanding lint/test failures remain.”
+
+Use this every time you finish a milestone, task, or subtask with UX impact. Do not wait for permission—send the completion statement immediately, one per finished item. Include exhaustive URLs or reproduction steps for any UX variation so reviewers can verify without guessing.

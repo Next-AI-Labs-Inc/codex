@@ -119,7 +119,27 @@ const packageManagerEnvVar =
     : "CODEX_MANAGED_BY_NPM";
 env[packageManagerEnvVar] = "1";
 
-const child = spawn(binaryPath, process.argv.slice(2), {
+const rawArgs = process.argv.slice(2);
+const mappedArgs = [];
+const hasSpec = rawArgs.includes("-spec") || rawArgs.includes("--spec");
+
+for (const arg of rawArgs) {
+  if (arg === "-spec") {
+    mappedArgs.push("--spec");
+    continue;
+  }
+  if (arg === "-spec-debug") {
+    mappedArgs.push("--spec-debug");
+    continue;
+  }
+  if (arg === "-debug" && hasSpec) {
+    mappedArgs.push("--spec-debug");
+    continue;
+  }
+  mappedArgs.push(arg);
+}
+
+const child = spawn(binaryPath, mappedArgs, {
   stdio: "inherit",
   env,
 });

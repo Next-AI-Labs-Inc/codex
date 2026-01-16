@@ -1,0 +1,9 @@
+## Close-out Prompt
+
+Run after implementation, before calling `task-complete`:
+
+1. For each acceptance criterion, state PASS/FAIL/IN PROGRESS and evidence.
+2. Confirm every constraint: upheld, adjusted, or violated (with rationale).
+3. Summarize any remaining open questions and who owns resolution.
+4. Declare approval readiness (`ready`, `needs review`, or `blocked`).
+5. List follow-up tasks or deployment notes so reviewers know the next move.

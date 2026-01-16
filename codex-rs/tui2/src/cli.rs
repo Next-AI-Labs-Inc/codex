@@ -102,6 +102,14 @@ pub struct Cli {
     #[arg(long = "add-dir", value_name = "DIR", value_hint = ValueHint::DirPath)]
     pub add_dir: Vec<PathBuf>,
 
+    /// Enable the Spec extension (UI + conversation logging).
+    #[arg(long = "spec", default_value_t = false)]
+    pub spec: bool,
+
+    /// Emit Spec extension debug logs to the terminal.
+    #[arg(long = "spec-debug", default_value_t = false, requires = "spec")]
+    pub spec_debug: bool,
+
     /// Disable alternate screen mode for better scrollback in terminal multiplexers like Zellij.
     /// This runs the TUI in inline mode, preserving terminal scrollback history.
     #[arg(long = "no-alt-screen", default_value_t = false)]
@@ -135,6 +143,8 @@ impl From<codex_tui::Cli> for Cli {
             cwd: cli.cwd,
             web_search: cli.web_search,
             add_dir: cli.add_dir,
+            spec: cli.spec,
+            spec_debug: cli.spec_debug,
             no_alt_screen: cli.no_alt_screen,
             config_overrides: cli.config_overrides,
         }

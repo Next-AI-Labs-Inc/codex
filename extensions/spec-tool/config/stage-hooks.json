@@ -1,0 +1,15 @@
+{
+  "capture_pre": [
+    { "name": "capture_swarm", "require_ack": true, "log_note": "swarm_init" },
+    { "name": "complexity_gate", "require_ack": true, "log_note": "complexity_gate" }
+  ],
+  "capture_post": [
+    { "name": "status_check", "require_ack": false, "log_note": "status_initial" }
+  ],
+  "check_post": [
+    { "name": "check_continue", "require_ack": false, "log_note": "keep_shipping" }
+  ],
+  "close_post": [
+    { "name": "close_status", "require_ack": false, "log_note": "status_final" }
+  ]
+}

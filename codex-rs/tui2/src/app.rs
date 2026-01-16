@@ -21,6 +21,10 @@ use crate::pager_overlay::Overlay;
 use crate::render::highlight::highlight_bash_to_lines;
 use crate::render::renderable::Renderable;
 use crate::resume_picker::SessionSelection;
+use crate::spec_integration::bootstrap_spec_session;
+use crate::spec_integration::SpecLogger;
+use crate::spec_integration::SpecSessionConfig;
+use crate::spec_integration::SpecSession;
 use crate::transcript_copy_action::TranscriptCopyAction;
 use crate::transcript_copy_action::TranscriptCopyFeedback;
 use crate::transcript_copy_ui::TranscriptCopyUi;
@@ -359,6 +363,7 @@ pub(crate) struct App {
     pub(crate) app_event_tx: AppEventSender,
     pub(crate) chat_widget: ChatWidget,
     pub(crate) auth_manager: Arc<AuthManager>,
+    pub(crate) spec_logger: Option<SpecLogger>,
     /// Config is stored here so we can recreate ChatWidgets as needed.
     pub(crate) config: Config,
     pub(crate) current_model: String,
@@ -438,6 +443,7 @@ impl App {
         feedback: codex_feedback::CodexFeedback,
         is_first_run: bool,
         ollama_chat_support_notice: Option<DeprecationNoticeEvent>,
+        spec_session: Option<SpecSession>,
     ) -> Result<AppExitInfo> {
         use tokio_stream::StreamExt;
         let (app_event_tx, mut app_event_rx) = unbounded_channel();
@@ -473,6 +479,7 @@ impl App {
         }
 
         let enhanced_keys_supported = tui.enhanced_keys_supported();
+        let spec_logger = spec_session.as_ref().map(|session| session.logger.clone());
         let mut chat_widget = match session_selection {
             SessionSelection::StartFresh | SessionSelection::Exit => {
                 let init = crate::chatwidget::ChatWidgetInit {
@@ -487,6 +494,7 @@ impl App {
                     feedback: feedback.clone(),
                     is_first_run,
                     model: config.model.clone(),
+                    spec_logger: spec_logger.clone(),
                 };
                 ChatWidget::new(init, thread_manager.clone())
             }
@@ -510,6 +518,7 @@ impl App {
                     feedback: feedback.clone(),
                     is_first_run,
                     model: config.model.clone(),
+                    spec_logger: spec_logger.clone(),
                 };
                 ChatWidget::new_from_existing(init, resumed.thread, resumed.session_configured)
             }
@@ -533,10 +542,22 @@ impl App {
                     feedback: feedback.clone(),
                     is_first_run,
                     model: config.model.clone(),
+                    spec_logger: spec_logger.clone(),
                 };
                 ChatWidget::new_from_existing(init, forked.thread, forked.session_configured)
             }
         };
+
+        if let Some(session) = &spec_session {
+            chat_widget.add_info_message(
+                format!(
+                    "Spec workspace running at {} (session: {}).",
+                    session.ui_url,
+                    session.logger.slug()
+                ),
+                Some("Open the URL to see the live spec + conversation log.".to_string()),
+            );
+        }
 
         chat_widget.maybe_prompt_windows_sandbox_enable();
 
@@ -565,6 +586,7 @@ impl App {
             app_event_tx,
             chat_widget,
             auth_manager: auth_manager.clone(),
+            spec_logger: spec_logger.clone(),
             config,
             current_model: model.clone(),
             active_profile,
@@ -1447,6 +1469,7 @@ impl App {
                     feedback: self.feedback.clone(),
                     is_first_run: false,
                     model: Some(self.current_model.clone()),
+                    spec_logger: self.spec_logger.clone(),
                 };
                 self.chat_widget = ChatWidget::new(init, self.server.clone());
                 if let Some(summary) = summary {
@@ -1496,6 +1519,7 @@ impl App {
                                     feedback: self.feedback.clone(),
                                     is_first_run: false,
                                     model: Some(self.current_model.clone()),
+                                    spec_logger: self.spec_logger.clone(),
                                 };
                                 self.chat_widget = ChatWidget::new_from_existing(
                                     init,
@@ -1531,62 +1555,73 @@ impl App {
                 // Leaving alt-screen may blank the inline viewport; force a redraw either way.
                 tui.frame_requester().schedule_frame();
             }
-            AppEvent::ForkCurrentSession => {
-                let summary = session_summary(
-                    self.chat_widget.token_usage(),
-                    self.chat_widget.conversation_id(),
-                );
-                if let Some(path) = self.chat_widget.rollout_path() {
-                    match self
-                        .server
-                        .fork_thread(usize::MAX, self.config.clone(), path.clone())
-                        .await
-                    {
-                        Ok(forked) => {
-                            self.shutdown_current_conversation().await;
-                            let init = crate::chatwidget::ChatWidgetInit {
-                                config: self.config.clone(),
-                                frame_requester: tui.frame_requester(),
-                                app_event_tx: self.app_event_tx.clone(),
-                                initial_prompt: None,
-                                initial_images: Vec::new(),
-                                enhanced_keys_supported: self.enhanced_keys_supported,
-                                auth_manager: self.auth_manager.clone(),
-                                models_manager: self.server.get_models_manager(),
-                                feedback: self.feedback.clone(),
-                                is_first_run: false,
-                                model: Some(self.current_model.clone()),
-                            };
-                            self.chat_widget = ChatWidget::new_from_existing(
-                                init,
-                                forked.thread,
-                                forked.session_configured,
-                            );
-                            if let Some(summary) = summary {
-                                let mut lines: Vec<Line<'static>> =
-                                    vec![summary.usage_line.clone().into()];
-                                if let Some(command) = summary.resume_command {
-                                    let spans = vec![
-                                        "To continue this session, run ".into(),
-                                        command.cyan(),
-                                    ];
-                                    lines.push(spans.into());
+            AppEvent::OpenForkPicker => {
+                match crate::resume_picker::run_fork_picker(
+                    tui,
+                    &self.config.codex_home,
+                    &self.config.model_provider_id,
+                    false,
+                )
+                .await?
+                {
+                    SessionSelection::Fork(path) => {
+                        let summary = session_summary(
+                            self.chat_widget.token_usage(),
+                            self.chat_widget.conversation_id(),
+                        );
+                        match self
+                            .server
+                            .fork_thread(usize::MAX, self.config.clone(), path.clone())
+                            .await
+                        {
+                            Ok(forked) => {
+                                self.shutdown_current_conversation().await;
+                                let init = crate::chatwidget::ChatWidgetInit {
+                                    config: self.config.clone(),
+                                    frame_requester: tui.frame_requester(),
+                                    app_event_tx: self.app_event_tx.clone(),
+                                    initial_prompt: None,
+                                    initial_images: Vec::new(),
+                                    enhanced_keys_supported: self.enhanced_keys_supported,
+                                    auth_manager: self.auth_manager.clone(),
+                                    models_manager: self.server.get_models_manager(),
+                                    feedback: self.feedback.clone(),
+                                    is_first_run: false,
+                                    model: Some(self.current_model.clone()),
+                                    spec_logger: self.spec_logger.clone(),
+                                };
+                                self.chat_widget = ChatWidget::new_from_existing(
+                                    init,
+                                    forked.thread,
+                                    forked.session_configured,
+                                );
+                                if let Some(summary) = summary {
+                                    let mut lines: Vec<Line<'static>> =
+                                        vec![summary.usage_line.clone().into()];
+                                    if let Some(command) = summary.resume_command {
+                                        let spans = vec![
+                                            "To continue this session, run ".into(),
+                                            command.cyan(),
+                                        ];
+                                        lines.push(spans.into());
+                                    }
+                                    self.chat_widget.add_plain_history_lines(lines);
                                 }
-                                self.chat_widget.add_plain_history_lines(lines);
+                            }
+                            Err(err) => {
+                                let path_display = path.display();
+                                self.chat_widget.add_error_message(format!(
+                                    "Failed to fork session from {path_display}: {err}"
+                                ));
                             }
                         }
-                        Err(err) => {
-                            let path_display = path.display();
-                            self.chat_widget.add_error_message(format!(
-                                "Failed to fork current session from {path_display}: {err}"
-                            ));
-                        }
                     }
-                } else {
-                    self.chat_widget
-                        .add_error_message("Current session is not ready to fork yet.".to_string());
+                    SessionSelection::Exit
+                    | SessionSelection::StartFresh
+                    | SessionSelection::Resume(_) => {}
                 }
 
+                // Leaving alt-screen may blank the inline viewport; force a redraw either way.
                 tui.frame_requester().schedule_frame();
             }
             AppEvent::InsertHistoryCell(cell) => {
@@ -1598,6 +1633,63 @@ impl App {
                 self.transcript_cells.push(cell.clone());
                 if self.overlay.is_some() {
                     self.deferred_history_cells.push(cell);
+                }
+            }
+            AppEvent::EnableSpecSession { debug } => {
+                if self.spec_logger.is_some() {
+                    self.chat_widget.add_info_message(
+                        "Spec extension is already active for this session.".to_string(),
+                        None,
+                    );
+                } else {
+                    match bootstrap_spec_session(
+                        &self.config,
+                        SpecSessionConfig {
+                            enabled: true,
+                            debug,
+                        },
+                    ) {
+                        Ok(Some(session)) => {
+                            self.spec_logger = Some(session.logger.clone());
+                            self.chat_widget.set_spec_logger(session.logger.clone());
+                            self.chat_widget.add_info_message(
+                                format!(
+                                    "Spec workspace running at {} (session: {}).",
+                                    session.ui_url,
+                                    session.logger.slug()
+                                ),
+                                Some(
+                                    "Open the URL to see the live spec + conversation log."
+                                        .to_string(),
+                                ),
+                            );
+                        }
+                        Ok(None) => {
+                            self.chat_widget.add_error_message(
+                                "Spec extension did not start.".to_string(),
+                            );
+                        }
+                        Err(err) => {
+                            self.chat_widget.add_error_message(format!(
+                                "Failed to start Spec extension: {err}"
+                            ));
+                        }
+                    }
+                }
+            }
+            AppEvent::DisableSpecSession => {
+                if self.spec_logger.is_some() {
+                    self.spec_logger = None;
+                    self.chat_widget.clear_spec_logger();
+                    self.chat_widget.add_info_message(
+                        "Spec extension disabled for this session.".to_string(),
+                        Some("Spec UI remains open, but conversation logging is off.".to_string()),
+                    );
+                } else {
+                    self.chat_widget.add_info_message(
+                        "Spec extension is already disabled.".to_string(),
+                        None,
+                    );
                 }
             }
             AppEvent::StartCommitAnimation => {
@@ -2338,6 +2430,7 @@ mod tests {
             app_event_tx,
             chat_widget,
             auth_manager,
+            spec_logger: None,
             config,
             current_model,
             active_profile: None,
@@ -2391,6 +2484,7 @@ mod tests {
                 app_event_tx,
                 chat_widget,
                 auth_manager,
+                spec_logger: None,
                 config,
                 current_model,
                 active_profile: None,
@@ -2627,7 +2721,6 @@ mod tests {
         let make_header = |is_first| {
             let event = SessionConfiguredEvent {
                 session_id: ThreadId::new(),
-                forked_from_id: None,
                 model: "gpt-test".to_string(),
                 model_provider_id: "test-provider".to_string(),
                 approval_policy: AskForApproval::Never,
@@ -2669,7 +2762,6 @@ mod tests {
             id: String::new(),
             msg: EventMsg::SessionConfigured(SessionConfiguredEvent {
                 session_id: base_id,
-                forked_from_id: None,
                 model: "gpt-test".to_string(),
                 model_provider_id: "test-provider".to_string(),
                 approval_policy: AskForApproval::Never,
@@ -2952,7 +3044,6 @@ mod tests {
         let conversation_id = ThreadId::new();
         let event = SessionConfiguredEvent {
             session_id: conversation_id,
-            forked_from_id: None,
             model: "gpt-test".to_string(),
             model_provider_id: "test-provider".to_string(),
             approval_policy: AskForApproval::Never,

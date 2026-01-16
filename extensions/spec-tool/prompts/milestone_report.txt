@@ -1,0 +1,15 @@
+Milestone Completion Report
+
+Whenever you reach a substantive milestone (anything verifiable in UX or admin experience), run this prompt before continuing. Minimum 10 sentences describing the new UX state.
+
+Include:
+1. Overarching intent (UX impact) translated into human terms.
+2. Subgoal intent(s) nested under the main goal; show how they ladder up.
+3. Tasks completed, expressed as UX changes (not code) with emoji for status.
+4. Exact UX before vs. after—what users/admins/agents now experience.
+5. Verification steps: visit → click → notice sequences so reviewers can validate.
+6. Call out any new user stories introduced (explicit bullet list).
+7. State which initial requirements/constraints you honored or deferred.
+8. Remind reviewers of the stored user quote and prepend it in your report.
+9. No fluff, no jargon; pure UX/intent language.
+10. Do not wait for permission after sending—keep working.
