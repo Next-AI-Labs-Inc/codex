@@ -172,6 +172,18 @@ impl TerminalInfo {
 
         sanitize_header_value(raw)
     }
+
+    /// Returns the (major, minor) Windows Terminal version when available.
+    ///
+    /// This parses the first two numeric components from the detected version string
+    /// (e.g. `"1.24.2372.0"` -> `(1, 24)`).
+    pub fn windows_terminal_major_minor(&self) -> Option<(u64, u64)> {
+        if self.name != TerminalName::WindowsTerminal {
+            return None;
+        }
+
+        self.version.as_deref().and_then(parse_major_minor_version)
+    }
 }
 
 static TERMINAL_INFO: OnceLock<TerminalInfo> = OnceLock::new();
@@ -444,6 +456,43 @@ fn format_terminal_version(name: &str, version: &Option<String>) -> String {
         Some(version) => format!("{name}/{version}"),
         None => name.to_string(),
     }
+}
+
+fn parse_major_minor_version(version: &str) -> Option<(u64, u64)> {
+    let mut major: Option<u64> = None;
+    let mut minor: Option<u64> = None;
+
+    let mut current: u64 = 0;
+    let mut in_digits = false;
+
+    for ch in version.chars() {
+        if let Some(digit) = ch.to_digit(10) {
+            current = current.saturating_mul(10).saturating_add(u64::from(digit));
+            in_digits = true;
+            continue;
+        }
+
+        if in_digits {
+            if major.is_none() {
+                major = Some(current);
+            } else if minor.is_none() {
+                minor = Some(current);
+                break;
+            }
+            current = 0;
+            in_digits = false;
+        }
+    }
+
+    if in_digits {
+        if major.is_none() {
+            major = Some(current);
+        } else if minor.is_none() {
+            minor = Some(current);
+        }
+    }
+
+    Some((major?, minor?))
 }
 
 fn none_if_whitespace(value: String) -> Option<String> {
@@ -1113,6 +1162,28 @@ mod tests {
             "WindowsTerminal/1.21",
             "windows_terminal_term_program_user_agent"
         );
+
+        assert_eq!(
+            terminal.windows_terminal_major_minor(),
+            Some((1, 21)),
+            "windows_terminal_parses_major_minor"
+        );
+    }
+
+    #[test]
+    fn parses_major_minor_versions() {
+        assert_eq!(
+            parse_major_minor_version("1.24.2372.0"),
+            Some((1, 24)),
+            "windows_terminal_release_version"
+        );
+        assert_eq!(
+            parse_major_minor_version("v1.24-preview"),
+            Some((1, 24)),
+            "windows_terminal_prefixed_version"
+        );
+        assert_eq!(parse_major_minor_version("1"), None, "single_component");
+        assert_eq!(parse_major_minor_version(""), None, "empty_string");
     }
 
     #[test]
