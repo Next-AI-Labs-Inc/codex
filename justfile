@@ -9,9 +9,14 @@ help:
 build *args:
     #!/usr/bin/env bash
     set -euo pipefail
-    BUILD_OUTPUT=$(cargo build "$@" 2>&1) || BUILD_EXIT=$?
+    echo "Building Codex (cargo build). This may take a few minutes..." >&2
+    set +e
+    BUILD_OUTPUT=$(cargo build "$@" 2>&1 | tee /dev/stderr)
+    BUILD_EXIT=${PIPESTATUS[0]}
+    set -e
     
     if [[ -z "${BUILD_EXIT:-}" ]]; then
+        echo "Build complete." >&2
         exit 0
     fi
     
