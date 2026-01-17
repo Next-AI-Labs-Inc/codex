@@ -56,4 +56,37 @@ You can also use Codex with an API key, but this requires [additional setup](htt
 - [**Installing & building**](./docs/install.md)
 - [**Open source fund**](./docs/open-source-fund.md)
 
+## Local enhancements in this fork
+
+This fork adds a small, optional set of local-only behaviors to improve workflow without changing the upstream defaults.
+
+### Auto-build on run (local)
+
+The launcher script runs `just build` before starting the CLI, so stale caches are cleaned and rebuilds are automatic. This is local-only and uses your existing Rust toolchain.
+
+### Automatic memory injection (semantic)
+
+If `AGENT_SWARM_PATH` is set and `$AGENT_SWARM_PATH/scripts/swarm` exists, Codex will run a semantic search on every user prompt and inject the top matches into the prompt **only when results are found**.
+
+Injected format:
+
+```
+Memories which may be helpful:
+{search results}
+```
+
+Notes:
+- Uses `swarm -v` (semantic vector search) with a small `--limit 5` and a short output cap.
+- If `swarm` is missing or returns no relevant matches, nothing is injected.
+
+#### Where memories come from
+
+Memory search relies on your Swarm JSONL store and its vector index. Ensure your Swarm tooling is initialized and that you are creating memories using the Swarm scripts or MCP tools (so the index stays current).
+
+Quick sanity check (manual):
+
+```bash
+$AGENT_SWARM_PATH/scripts/swarm -v "your test query"
+```
+
 This repository is licensed under the [Apache-2.0 License](LICENSE).
