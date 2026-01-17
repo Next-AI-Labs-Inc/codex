@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${AGENT_SWARM_PATH:?AGENT_SWARM_PATH must be set}"
+
+AGENTDB_CLI="${AGENTDB_CLI:-$AGENT_SWARM_PATH/node_modules/.bin/agentdb}"
+AGENTDB_LOG="${AGENTDB_LOG:-$AGENT_SWARM_PATH/data/agentdb-mcp.log}"
+AGENTDB_PID_FILE="${AGENTDB_PID_FILE:-$AGENT_SWARM_PATH/data/agentdb-mcp.pid}"
+AGENTDB_NODE_OPTIONS="${AGENTDB_NODE_OPTIONS:---require $AGENT_SWARM_PATH/scripts/console-to-stderr.js}"
+
+if [[ ! -x "$AGENTDB_CLI" ]]; then
+  CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+  ALT_BIN="$CODEX_HOME/tools/agentdb/node_modules/.bin/agentdb"
+  if [[ -x "$ALT_BIN" ]]; then
+    AGENTDB_CLI="$ALT_BIN"
+  else
+    echo "⚠️  AgentDB CLI not found. Run /Users/jedi/react_projects/ix/codex3/scripts/agentdb-setup." >&2
+    exit 1
+  fi
+fi
+
+if pgrep -f "agentdb mcp start" >/dev/null 2>&1; then
+  echo "✅ AgentDB MCP already running."
+  exit 0
+fi
+
+mkdir -p "$(dirname "$AGENTDB_LOG")"
+echo "🚀 Starting AgentDB MCP… (logs: $AGENTDB_LOG)"
+nohup env NODE_OPTIONS="$AGENTDB_NODE_OPTIONS" "$AGENTDB_CLI" mcp start >>"$AGENTDB_LOG" 2>&1 &
+echo "$!" >"$AGENTDB_PID_FILE"
+sleep 1

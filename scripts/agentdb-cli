@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Thin wrapper so Codex can run AgentDB against a shared database path.
+set -euo pipefail
+
+: "${AGENT_SWARM_PATH:?AGENT_SWARM_PATH must be set}"
+DEFAULT_DB_PATH="$AGENT_SWARM_PATH/data/agentdb/agentdb.db"
+export AGENTDB_PATH="${AGENTDB_PATH:-$DEFAULT_DB_PATH}"
+
+CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+CLI_BIN="$AGENT_SWARM_PATH/node_modules/.bin/agentdb"
+if [[ -x "$CLI_BIN" ]]; then
+  exec "$CLI_BIN" "$@"
+fi
+
+TOOLS_BIN="$CODEX_HOME/tools/agentdb/node_modules/.bin/agentdb"
+if [[ -x "$TOOLS_BIN" ]]; then
+  exec "$TOOLS_BIN" "$@"
+fi
+
+echo "agentdb CLI not found. Run /Users/jedi/react_projects/ix/codex3/scripts/agentdb-setup." >&2
+exit 1

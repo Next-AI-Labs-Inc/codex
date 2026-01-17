@@ -95,4 +95,40 @@ Each user turn writes a small log entry so you can see the query and what (if an
 
 `~/.codex/log/memory_injection.log` (or `$CODEX_HOME/log/memory_injection.log` if `CODEX_HOME` is set).
 
+### AgentDB MCP helper (optional)
+
+This fork includes lightweight scripts to start the AgentDB MCP server using your shared Swarm install. This is optional, but it gives Codex access to AgentDB-backed memory tools.
+
+#### Prereqs (one time)
+
+```bash
+export AGENT_SWARM_PATH="/path/to/agent-swarm-mcp"
+./scripts/agentdb-setup
+```
+
+#### Start AgentDB MCP
+
+```bash
+export AGENT_SWARM_PATH="/path/to/agent-swarm-mcp"
+./scripts/agentdb-mcp
+```
+
+#### Wire into Codex (config snippet)
+
+Add this to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.agentdb]
+command = "/bin/bash"
+args = ["-lc", "/path/to/codex3/scripts/agentdb-cli mcp start"]
+
+[mcp_servers.agentdb.env]
+AGENT_SWARM_PATH = "/path/to/agent-swarm-mcp"
+```
+
+Notes:
+- Uses a local AgentDB CLI installed by `./scripts/agentdb-setup`.
+- Default DB path: `$AGENT_SWARM_PATH/data/agentdb/agentdb.db` (override with `AGENTDB_PATH`).
+- Logs: `$AGENT_SWARM_PATH/data/agentdb-mcp.log`
+
 This repository is licensed under the [Apache-2.0 License](LICENSE).

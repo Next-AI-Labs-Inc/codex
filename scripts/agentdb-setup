@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+: "${AGENT_SWARM_PATH:?AGENT_SWARM_PATH must be set}"
+
+TOOLS_DIR="$CODEX_HOME/tools/agentdb"
+CLI_BIN="$TOOLS_DIR/node_modules/.bin/agentdb"
+DB_PATH="${AGENTDB_PATH:-$AGENT_SWARM_PATH/data/agentdb/agentdb.db}"
+
+mkdir -p "$TOOLS_DIR"
+if [[ ! -f "$TOOLS_DIR/package.json" ]]; then
+  (cd "$TOOLS_DIR" && npm init -y >/dev/null)
+fi
+
+if [[ ! -x "$CLI_BIN" ]]; then
+  (cd "$TOOLS_DIR" && npm install agentdb@1.6.1)
+fi
+
+mkdir -p "$(dirname "$DB_PATH")"
+if [[ ! -f "$DB_PATH" ]]; then
+  "$CLI_BIN" init "$DB_PATH"
+fi
+
+echo "AgentDB ready. CLI: $CLI_BIN" >&2
+echo "AgentDB DB: $DB_PATH" >&2
