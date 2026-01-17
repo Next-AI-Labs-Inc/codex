@@ -89,4 +89,10 @@ Quick sanity check (manual):
 $AGENT_SWARM_PATH/scripts/swarm -v "your test query"
 ```
 
+#### Memory injection logs
+
+Each user turn writes a small log entry so you can see the query and what (if anything) was injected:
+
+`~/.codex/log/memory_injection.log` (or `$CODEX_HOME/log/memory_injection.log` if `CODEX_HOME` is set).
+
 This repository is licensed under the [Apache-2.0 License](LICENSE).
