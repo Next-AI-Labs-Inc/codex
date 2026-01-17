@@ -156,6 +156,8 @@ use crate::tools::spec::ToolsConfigParams;
 use crate::turn_diff_tracker::TurnDiffTracker;
 use crate::unified_exec::UnifiedExecProcessManager;
 use crate::user_instructions::UserInstructions;
+use crate::memory_search::build_memory_injection;
+use crate::memory_search::log_memory_injection;
 use crate::user_notification::UserNotification;
 use crate::util::backoff;
 use codex_async_utils::OrCancelExt;
@@ -2603,6 +2605,29 @@ pub(crate) async fn run_turn(
             .await;
     }
 
+    if let Some(query) = build_memory_query(&input) {
+        let memory_message = build_memory_injection(&query).await;
+        let codex_home = {
+            let state = sess.state.lock().await;
+            state
+                .session_configuration
+                .original_config_do_not_use
+                .codex_home
+                .clone()
+        };
+        log_memory_injection(&codex_home, &query, memory_message.as_deref()).await;
+
+        if let Some(message) = memory_message {
+            let memory_item = ResponseItem::Message {
+                id: None,
+                role: "developer".to_string(),
+                content: vec![ContentItem::InputText { text: message }],
+            };
+            sess.record_conversation_items(&turn_context, std::slice::from_ref(&memory_item))
+                .await;
+        }
+    }
+
     let initial_input_for_turn: ResponseInputItem = ResponseInputItem::from(input.clone());
     let response_item: ResponseItem = initial_input_for_turn.clone().into();
     sess.record_user_prompt_and_emit_turn_item(turn_context.as_ref(), &input, response_item)
@@ -3114,6 +3139,22 @@ pub(super) fn get_last_assistant_message_from_turn(responses: &[ResponseItem]) -
             None
         }
     })
+}
+
+fn build_memory_query(input: &[UserInput]) -> Option<String> {
+    let mut text_parts = Vec::new();
+    for item in input {
+        if let UserInput::Text { text, .. } = item {
+            let trimmed = text.trim();
+            if !trimmed.is_empty() {
+                text_parts.push(trimmed.to_string());
+            }
+        }
+    }
+    if text_parts.is_empty() {
+        return None;
+    }
+    Some(text_parts.join("\n"))
 }
 
 #[cfg(test)]

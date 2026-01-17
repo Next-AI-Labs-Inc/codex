@@ -27,6 +27,7 @@ mod environment_context;
 pub mod error;
 pub mod exec;
 pub mod exec_env;
+pub mod memory_search;
 mod exec_policy;
 pub mod features;
 mod flags;
