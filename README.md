@@ -56,79 +56,213 @@ You can also use Codex with an API key, but this requires [additional setup](htt
 - [**Installing & building**](./docs/install.md)
 - [**Open source fund**](./docs/open-source-fund.md)
 
-## Local enhancements in this fork
+## Next AI Labs Fork - Enhanced Features
 
-This fork adds a small, optional set of local-only behaviors to improve workflow without changing the upstream defaults.
+This fork includes production-ready enhancements to improve developer workflow and agent memory capabilities. All features are **opt-in** and do not change upstream defaults.
 
-### Auto-build on run (local)
+### 🚀 Key Enhancements
 
-The launcher script runs `just build` before starting the CLI, so stale caches are cleaned and rebuilds are automatic. This is local-only and uses your existing Rust toolchain.
+#### 1. Automatic Stale Cache Recovery
 
-### Automatic memory injection (semantic)
+**Problem Solved:** Rust incremental compilation can cause "no field on type" errors after pulling struct changes, requiring manual `cargo clean` intervention.
 
-If `AGENT_SWARM_PATH` is set and `$AGENT_SWARM_PATH/scripts/swarm` exists, Codex will run a semantic search on every user prompt and inject the top matches into the prompt **only when results are found**.
+**Solution:** The `just build` recipe automatically detects and recovers from stale cache errors.
 
-Injected format:
+**How it works:**
+```bash
+just build    # Automatically detects stale cache and retries
+```
 
+When a "no field on type" error is detected:
+1. Extracts the affected crate name from the error
+2. Runs `cargo clean -p <crate>` automatically
+3. Retries the build without manual intervention
+
+**Implementation:** See justfile:8-40
+
+#### 2. Semantic Memory Injection
+
+**Problem Solved:** Agents lack context from previous sessions and organizational knowledge when responding to prompts.
+
+**Solution:** Automatically injects relevant memories from your Agent Swarm knowledge base into each user prompt.
+
+**Setup:**
+```bash
+# Set your Agent Swarm path
+export AGENT_SWARM_PATH="/path/to/agent-swarm-mcp"
+
+# Verify swarm is accessible
+$AGENT_SWARM_PATH/scripts/swarm -v "test query"
+```
+
+**How it works:**
+- On each user turn, extracts key terms from your prompt
+- Runs semantic vector search: `swarm -v --limit 5`
+- Injects results only if relevant memories are found
+- Timeout protection (3 seconds) to prevent blocking
+
+**Injected format:**
 ```
 Memories which may be helpful:
-{search results}
+<relevant context from swarm>
 ```
 
-Notes:
-- Uses `swarm -v` (semantic vector search) with a small `--limit 5` and a short output cap.
-- If `swarm` is missing or returns no relevant matches, nothing is injected.
-
-#### Where memories come from
-
-Memory search relies on your Swarm JSONL store and its vector index. Ensure your Swarm tooling is initialized and that you are creating memories using the Swarm scripts or MCP tools (so the index stays current).
-
-Quick sanity check (manual):
-
-```bash
-$AGENT_SWARM_PATH/scripts/swarm -v "your test query"
+**Logging & Debugging:**
+All memory injections are logged to `~/.codex/log/memory_injection.log`:
+```
+[2026-01-17 10:30:45 UTC]
+Query: implement user authentication
+Injected:
+✓ Found 3 relevant memories about auth patterns
 ```
 
-#### Memory injection logs
+**Implementation:**
+- Core logic: codex-rs/core/src/memory_search.rs
+- Integration: codex-rs/core/src/codex.rs:385-425
 
-Each user turn writes a small log entry so you can see the query and what (if anything) was injected:
+**Performance:**
+- Non-blocking with 3s timeout
+- Only queries when AGENT_SWARM_PATH is configured
+- No injection = no performance impact
 
-`~/.codex/log/memory_injection.log` (or `$CODEX_HOME/log/memory_injection.log` if `CODEX_HOME` is set).
+#### 3. Enhanced Build Feedback
 
-### AgentDB MCP helper (optional)
+**Problem Solved:** Long builds provide no feedback, causing developer uncertainty.
 
-This fork includes lightweight scripts to start the AgentDB MCP server using your shared Swarm install. This is optional, but it gives Codex access to AgentDB-backed memory tools.
+**Solution:** Clear progress indicators during build process.
 
-#### Prereqs (one time)
+**Features:**
+- Start message: `"Building Codex (cargo build). This may take a few minutes..."`
+- Real-time cargo output via `tee`
+- Completion message: `"Build complete."`
+- Preserved output for debugging
+
+**Implementation:** See justfile:12-19
+
+### 📋 Prerequisites
+
+**Required for all features:**
+- Rust toolchain (1.92.0+)
+- Just command runner: `cargo install just`
+
+**Required for memory injection:**
+- Agent Swarm MCP with vector search support
+- Environment variable: `AGENT_SWARM_PATH`
+- Working swarm index (test with `swarm -v`)
+
+### 🔧 Quick Start
 
 ```bash
+# Clone this fork
+git clone https://github.com/Next-AI-Labs-Inc/codex.git
+cd codex
+
+# Build with automatic cache recovery
+just build
+
+# Optional: Enable memory injection
 export AGENT_SWARM_PATH="/path/to/agent-swarm-mcp"
-./scripts/agentdb-setup
+
+# Run Codex
+just codex
+# or
+cargo run --bin codex
 ```
 
-#### Start AgentDB MCP
+### 🧪 Testing the Enhancements
+
+**Test stale cache recovery:**
+```bash
+# This will auto-recover if cache issues occur
+just build
+```
+
+**Test memory injection:**
+```bash
+# Check if swarm is working
+$AGENT_SWARM_PATH/scripts/swarm -v "authentication patterns"
+
+# Start Codex and enter a prompt
+just codex
+
+# Enter: "How should I implement user authentication?"
+# Check log: tail ~/.codex/log/memory_injection.log
+```
+
+### 📊 Feature Comparison
+
+| Feature | Upstream | This Fork |
+|---------|----------|-----------|
+| Build cache recovery | Manual `cargo clean` | Automatic detection & retry |
+| Memory context | None | Semantic search integration |
+| Build feedback | Minimal | Detailed progress indicators |
+| Agent Swarm integration | Not available | Production-ready |
+
+### 🔍 Implementation Details
+
+**Memory Search Algorithm:**
+1. Extract content text from user input
+2. Build query from text (multi-word terms preserved)
+3. Execute `swarm -v --limit 5` with 3s timeout
+4. Filter noise (headers, empty lines, ANSI codes)
+5. Inject if results found, skip if empty
+
+**Cache Recovery Regex:**
+- Pattern: `no field.*on type`
+- Extraction: `\([^:]*\)::` → crate name
+- Conversion: snake_case → kebab-case
+- Fallback: Full `cargo clean` if extraction fails
+
+### 🛠️ Configuration
+
+**Memory injection can be disabled:**
+```bash
+unset AGENT_SWARM_PATH    # Disables memory search
+```
+
+**Custom log location:**
+```bash
+export CODEX_HOME="/custom/path"
+# Logs to: $CODEX_HOME/log/memory_injection.log
+```
+
+**Adjust memory search limit:**
+Edit `codex-rs/core/src/memory_search.rs:80`:
+```rust
+.arg("--limit").arg("10")  // Default is 5
+```
+
+### 🐛 Troubleshooting
+
+**Memory injection not working?**
+```bash
+# Verify AGENT_SWARM_PATH
+echo $AGENT_SWARM_PATH
+
+# Test swarm directly
+$AGENT_SWARM_PATH/scripts/swarm -v "test"
+
+# Check logs
+tail -f ~/.codex/log/memory_injection.log
+```
+
+**Build cache still failing?**
+```bash
+# Manual fallback
+cargo clean
+just build
+```
+
+### 📚 Upstream Compatibility
+
+This fork tracks `openai/codex:main` and can be rebased onto upstream releases:
 
 ```bash
-export AGENT_SWARM_PATH="/path/to/agent-swarm-mcp"
-./scripts/agentdb-mcp
+git remote add upstream https://github.com/openai/codex.git
+git fetch upstream
+git rebase upstream/main
 ```
 
-#### Wire into Codex (config snippet)
-
-Add this to `~/.codex/config.toml`:
-
-```toml
-[mcp_servers.agentdb]
-command = "/bin/bash"
-args = ["-lc", "/path/to/codex3/scripts/agentdb-cli mcp start"]
-
-[mcp_servers.agentdb.env]
-AGENT_SWARM_PATH = "/path/to/agent-swarm-mcp"
-```
-
-Notes:
-- Uses a local AgentDB CLI installed by `./scripts/agentdb-setup`.
-- Default DB path: `$AGENT_SWARM_PATH/data/agentdb/agentdb.db` (override with `AGENTDB_PATH`).
-- Logs: `$AGENT_SWARM_PATH/data/agentdb-mcp.log`
+All enhancements are additive and do not modify core Codex behavior.
 
 This repository is licensed under the [Apache-2.0 License](LICENSE).
