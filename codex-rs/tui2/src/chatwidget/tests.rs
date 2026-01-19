@@ -1385,6 +1385,21 @@ async fn slash_rollout_handles_missing_path() {
 }
 
 #[tokio::test]
+async fn slash_memory_extract_displays_activation_message() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
+
+    chat.dispatch_command(SlashCommand::MemoryExtract);
+
+    let cells = drain_insert_history(&mut rx);
+    assert_eq!(cells.len(), 1, "expected activation info message");
+    let rendered = lines_to_single_string(&cells[0]);
+    assert!(
+        rendered.contains("memory extraction mode activated"),
+        "expected activation message to be shown: {rendered}"
+    );
+}
+
+#[tokio::test]
 async fn undo_success_events_render_info_messages() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
 

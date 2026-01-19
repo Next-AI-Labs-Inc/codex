@@ -1,10 +1,11 @@
+use chrono::Utc;
 use regex_lite::Regex;
 use std::path::PathBuf;
-use chrono::Utc;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
-use tokio::time::{timeout, Duration};
+use tokio::time::Duration;
+use tokio::time::timeout;
 
 const MEMORY_PREFIX: &str = "Memories which may be helpful:\n";
 
@@ -13,11 +14,7 @@ fn swarm_script_path() -> Option<PathBuf> {
     let mut path = PathBuf::from(swarm_root);
     path.push("scripts");
     path.push("swarm");
-    if path.exists() {
-        Some(path)
-    } else {
-        None
-    }
+    if path.exists() { Some(path) } else { None }
 }
 
 fn strip_ansi(input: &str) -> String {

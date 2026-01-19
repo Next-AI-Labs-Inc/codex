@@ -2114,6 +2114,9 @@ impl ChatWidget {
             SlashCommand::Mcp => {
                 self.add_mcp_output();
             }
+            SlashCommand::MemoryExtract => {
+                self.add_info_message("memory extraction mode activated".to_string(), None);
+            }
             SlashCommand::Rollout => {
                 if let Some(path) = self.rollout_path() {
                     self.add_info_message(
